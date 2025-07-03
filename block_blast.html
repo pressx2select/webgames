@@ -23,6 +23,7 @@
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
+            touch-action: none; /* IMPORTANT: Prevent default touch actions like scrolling/zooming on the entire body */
         }
 
         /* Game container styling */
@@ -145,7 +146,7 @@
             border: 5px solid #34495e; /* Dark border for the board */
             border-radius: 10px;
             display: block;
-            touch-action: none; /* Prevent browser default touch actions like scrolling/zooming */
+            /* Removed touch-action: none here as it's now on the body */
         }
 
         /* Available pieces area */
@@ -260,7 +261,7 @@
     <div class="game-container">
         <!-- Start Screen -->
         <div id="startScreen">
-            <h1>block blast v0.2</h1>
+            <h1>block blast v0.3</h1>
             <!-- Z-Tetris piece will be drawn here -->
             <div id="startScreenPiece">
                 <canvas id="zPieceCanvas"></canvas>
