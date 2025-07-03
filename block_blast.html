@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>block blast</title>
+    <title>Block Blast Game</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
         /* Basic reset and font */
@@ -260,20 +260,20 @@
     <div class="game-container">
         <!-- Start Screen -->
         <div id="startScreen">
-            <h1>block blast</h1>
+            <h1>Block Blast!</h1>
             <!-- Z-Tetris piece will be drawn here -->
             <div id="startScreenPiece">
                 <canvas id="zPieceCanvas"></canvas>
             </div>
-            <p class="high-score-display">high score: <span id="highScoreDisplayStart">0</span></p>
+            <p class="high-score-display">High Score: <span id="highScoreDisplayStart">0</span></p>
             <button id="startButton" class="action-button">Start Game</button>
         </div>
 
         <!-- Main Game Screen -->
         <div id="gameScreen">
             <div class="info-panel">
-                <span>score: <span id="score">0</span></span>
-                <span>high score: <span id="highScoreDisplayGame">0</span></span>
+                <span>Score: <span id="score">0</span></span>
+                <span>High Score: <span id="highScoreDisplayGame">0</span></span>
                 <span id="gameOverMessage" class="game-over-message" style="display: none;">Game Over!</span>
             </div>
             <canvas id="gameCanvas"></canvas>
@@ -820,6 +820,10 @@
                     const mainCanvasCoords = getEventCoords(event); // Get current coords relative to main canvas
                     drawBoard(); // Clear and redraw board
                     drawPiece(ctx, draggedPiece, mainCanvasCoords.x - dragOffsetX, mainCanvasCoords.y - dragOffsetY, BLOCK_SIZE);
+
+                    // Add touchmove and touchend listeners to the document
+                    document.addEventListener('touchmove', onDragMove, { passive: false });
+                    document.addEventListener('touchend', onDragEnd, { passive: false });
                 }
             }
         }
@@ -882,19 +886,21 @@
             draggedPieceIndex = -1;
             dragOffsetX = 0;
             dragOffsetY = 0;
+
+            // Remove touchmove and touchend listeners from the document
+            document.removeEventListener('touchmove', onDragMove);
+            document.removeEventListener('touchend', onDragEnd);
         }
 
         // --- Event Listeners ---
 
         // Listen for drag start on the pieces container (delegation)
         piecesContainer.addEventListener('mousedown', onPieceSlotStart);
-        piecesContainer.addEventListener('touchstart', onPieceSlotStart, { passive: false }); // passive: false to allow preventDefault
+        // Note: touchstart is now handled by adding document-level listeners on drag start
 
-        // Listen for drag move and end on the canvas
+        // Listen for drag move and end on the canvas for mouse events
         canvas.addEventListener('mousemove', onDragMove);
         canvas.addEventListener('mouseup', onDragEnd);
-        canvas.addEventListener('touchmove', onDragMove, { passive: false });
-        canvas.addEventListener('touchend', onDragEnd, { passive: false });
 
         // Start button and Play Again button listeners
         startButton.addEventListener('click', startGame);
