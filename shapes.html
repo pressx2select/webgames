@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fireball Showdown</title>
+    <!-- Tailwind CSS CDN for basic styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom CSS for game elements */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 100vh; /* Ensure body takes full height */
+            color: #e2e8f0; /* Light text */
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 600px; /* Max width for larger screens */
+            min-height: 100vh; /* Changed from height to min-height to allow content to fit */
+            margin: auto;
+            background-color: #2d3748; /* Slightly lighter dark background */
+            border-radius: 1rem;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden; /* Keep overflow hidden for the game area itself */
+        }
+
+        .player-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            background-color: #2a4365; /* Player area background */
+            border-radius: 1rem;
+            margin: 0.5rem;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+
+        .player-area.player-one {
+            order: 1; /* Player One at the top */
+        }
+
+        .player-area.player-two {
+            order: 3; /* Player Two at the bottom */
+        }
+
+        .meters-container {
+            display: flex;
+            width: 100%;
+            justify-content: space-around;
+            margin-bottom: 0.5rem;
+        }
+
+        .meter {
+            width: 48%;
+            height: 1rem;
+            background-color: #4a5568;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 1px solid #4a5568;
+        }
+
+        .meter-fill {
+            height: 100%;
+            transition: width 0.1s linear;
+        }
+
+        .health-meter .meter-fill {
+            background-color: #ef4444; /* Red for health */
+        }
+
+        .fireball-meter .meter-fill {
+            background-color: #f59e0b; /* Orange for fireball energy */
+        }
+
+        .buttons-container {
+            display: flex;
+            gap: 0.5rem;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .fire-button {
+            flex-grow: 1;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            background: linear-gradient(145deg, #4299e1, #3182ce); /* Blue gradient */
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.2);
+            transition: transform 0.1s ease, background 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 60px; /* Ensure buttons are tappable */
+            min-height: 60px;
+        }
+
+        .fire-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+            background: linear-gradient(145deg, #3182ce, #4299e1);
+        }
+
+        .fire-button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .button-icon {
+            width: 1.5em;
+            height: 1.5em;
+            fill: currentColor;
+        }
+
+        canvas {
+            background-color: #1a202c; /* Game area background */
+            display: block;
+            flex-grow: 1; /* Canvas takes available space */
+            width: 100%;
+            touch-action: none; /* Prevent default touch actions like scrolling/zooming */
+            order: 2; /* Canvas in the middle */
+        }
+
+        .game-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 1.5rem 2.5rem;
+            border-radius: 1rem;
+            color: #fff;
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+            z-index: 100;
+            display: none; /* Hidden by default */
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .game-message button {
+            margin-top: 1rem;
+            padding: 0.75rem 1.5rem;
+            background-color: #48bb78; /* Green for restart */
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: background-color 0.2s ease;
+        }
+
+        .game-message button:hover {
+            background-color: #38a169;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+
+        /* Fireball styling (drawn on canvas) */
+        /* No CSS for fireballs directly, they are drawn in JS */
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Player One Area (Top) -->
+        <div class="player-area player-one">
+            <h2 class="text-xl font-semibold mb-2">Player One</h2>
+            <div class="meters-container">
+                <div class="meter health-meter">
+                    <div id="p1-health-fill" class="meter-fill bg-red-500" style="width: 100%;"></div>
+                </div>
+                <div class="meter fireball-meter">
+                    <div id="p1-fireball-fill" class="meter-fill bg-orange-500" style="width: 100%;"></div>
+                </div>
+            </div>
+            <div class="buttons-container">
+                <button id="p1-square" class="fire-button" data-shape="square">
+                    <svg class="button-icon" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    </svg>
+                </button>
+                <button id="p1-circle" class="fire-button" data-shape="circle">
+                    <svg class="button-icon" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                    </svg>
+                </button>
+                <button id="p1-triangle" class="fire-button" data-shape="triangle">
+                    <svg class="button-icon" viewBox="0 0 24 24">
+                        <path d="M12 2L3 22h18z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Player Two Area (Bottom) -->
+        <div class="player-area player-two">
+            <h2 class="text-xl font-semibold mb-2">Player Two</h2>
+            <div class="meters-container">
+                <div class="meter health-meter">
+                    <div id="p2-health-fill" class="meter-fill bg-red-500" style="width: 100%;"></div>
+                </div>
+                <div class="meter fireball-meter">
+                    <div id="p2-fireball-fill" class="meter-fill bg-orange-500" style="width: 100%;"></div>
+                </div>
+            </div>
+            <div class="buttons-container">
+                <button id="p2-square" class="fire-button" data-shape="square">
+                    <svg class="button-icon" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    </svg>
+                </button>
+                <button id="p2-circle" class="fire-button" data-shape="circle">
+                    <svg class="button-icon" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                    </svg>
+                </button>
+                <button id="p2-triangle" class="fire-button" data-shape="triangle">
+                    <svg class="button-icon" viewBox="0 0 24 24">
+                        <path d="M12 2L3 22h18z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Message -->
+        <div id="game-message" class="game-message">
+            <p id="message-text"></p>
+            <button id="restart-button">Restart Game</button>
+        </div>
+    </div>
+
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game configuration
+        const GAME_CONFIG = {
+            MAX_HEALTH: 100,
+            MAX_FIREBALL_ENERGY: 100,
+            FIREBALL_COST: 30,
+            ENERGY_REGEN_RATE: 10, // Energy per second
+            FIREBALL_SPEED: 200, // Pixels per second
+            DAMAGE_ON_WIN: 25,
+            FIREBALL_RADIUS: 20,
+            GAME_UPDATE_INTERVAL: 1000 / 60 // 60 FPS
+        };
+
+        // Player states
+        let player1 = {
+            health: GAME_CONFIG.MAX_HEALTH,
+            fireballEnergy: GAME_CONFIG.MAX_FIREBALL_ENERGY,
+            fireballs: [],
+            lastFiredShape: null,
+            canFire: true,
+            buttons: {
+                square: document.getElementById('p1-square'),
+                circle: document.getElementById('p1-circle'),
+                triangle: document.getElementById('p1-triangle')
+            },
+            healthFill: document.getElementById('p1-health-fill'),
+            fireballFill: document.getElementById('p1-fireball-fill')
+        };
+
+        let player2 = {
+            health: GAME_CONFIG.MAX_HEALTH,
+            fireballEnergy: GAME_CONFIG.MAX_FIREBALL_ENERGY,
+            fireballs: [],
+            lastFiredShape: null,
+            canFire: true,
+            buttons: {
+                square: document.getElementById('p2-square'),
+                circle: document.getElementById('p2-circle'),
+                triangle: document.getElementById('p2-triangle')
+            },
+            healthFill: document.getElementById('p2-health-fill'),
+            fireballFill: document.getElementById('p2-fireball-fill')
+        };
+
+        // Game state variables
+        let lastUpdateTime = 0;
+        let gameActive = true;
+
+        // Game message elements
+        const gameMessage = document.getElementById('game-message');
+        const messageText = document.getElementById('message-text');
+        const restartButton = document.getElementById('restart-button');
+
+        /**
+         * Resizes the canvas to fill its container.
+         * This function should be called on window load and resize.
+         */
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            // Redraw everything after resize
+            drawGame();
+        }
+
+        /**
+         * Fireball class to manage individual fireballs.
+         * @param {number} x - Initial X position.
+         * @param {number} y - Initial Y position.
+         * @param {string} shape - The shape of the fireball ('square', 'circle', 'triangle').
+         * @param {number} direction - 1 for downwards, -1 for upwards.
+         */
+        class Fireball {
+            constructor(x, y, shape, direction) {
+                this.x = x;
+                this.y = y;
+                this.shape = shape;
+                this.direction = direction;
+                this.radius = GAME_CONFIG.FIREBALL_RADIUS;
+                this.color = this.getShapeColor(shape);
+            }
+
+            /**
+             * Gets the color for a given shape.
+             * @param {string} shape - The shape of the fireball.
+             * @returns {string} The color string.
+             */
+            getShapeColor(shape) {
+                switch (shape) {
+                    case 'square': return '#60a5fa'; // Blue (Paper)
+                    case 'circle': return '#f87171'; // Red (Rock)
+                    case 'triangle': return '#a78bfa'; // Purple (Scissors)
+                    default: return '#ffffff';
+                }
+            }
+
+            /**
+             * Updates the fireball's position.
+             * @param {number} deltaTime - Time elapsed since last update in seconds.
+             */
+            update(deltaTime) {
+                this.y += this.direction * GAME_CONFIG.FIREBALL_SPEED * deltaTime;
+            }
+
+            /**
+             * Draws the fireball on the canvas.
+             */
+            draw() {
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                switch (this.shape) {
+                    case 'square':
+                        ctx.rect(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+                        break;
+                    case 'circle':
+                        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        break;
+                    case 'triangle':
+                        ctx.moveTo(this.x, this.y - this.radius);
+                        ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6));
+                        ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6));
+                        ctx.closePath();
+                        break;
+                }
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        /**
+         * Handles a player firing a fireball.
+         * @param {object} player - The player object (player1 or player2).
+         * @param {string} shape - The shape of the fireball to fire.
+         */
+        function fireFireball(player, shape) {
+            if (!gameActive || !player.canFire || player.fireballEnergy < GAME_CONFIG.FIREBALL_COST) {
+                return; // Cannot fire
+            }
+
+            player.fireballEnergy -= GAME_CONFIG.FIREBALL_COST;
+            player.canFire = false; // Prevent rapid firing immediately
+            player.lastFiredShape = shape;
+
+            // Determine initial position and direction
+            // Fireballs launch from the horizontal center of the canvas
+            let startX = canvas.width / 2;
+            let startY;
+            let direction;
+
+            if (player === player1) {
+                // Player 1 (top) launches from the top edge of the canvas, moving downwards
+                startY = GAME_CONFIG.FIREBALL_RADIUS;
+                direction = 1; // Move downwards
+            } else {
+                // Player 2 (bottom) launches from the bottom edge of the canvas, moving upwards
+                startY = canvas.height - GAME_CONFIG.FIREBALL_RADIUS;
+                direction = -1; // Move upwards
+            }
+
+            player.fireballs.push(new Fireball(startX, startY, shape, direction));
+
+            // Allow firing again after a short delay (or when meter allows)
+            setTimeout(() => {
+                player.canFire = true;
+            }, 500); // 0.5 second cooldown, in addition to energy cost
+        }
+
+        /**
+         * Updates player meters (health and fireball energy).
+         * @param {object} player - The player object.
+         */
+        function updateMeters(player) {
+            player.healthFill.style.width = `${(player.health / GAME_CONFIG.MAX_HEALTH) * 100}%`;
+            player.fireballFill.style.width = `${(player.fireballEnergy / GAME_CONFIG.MAX_FIREBALL_ENERGY) * 100}%`;
+
+            // Disable buttons if not enough energy
+            const disableButtons = player.fireballEnergy < GAME_CONFIG.FIREBALL_COST;
+            player.buttons.square.disabled = disableButtons;
+            player.buttons.circle.disabled = disableButtons;
+            player.buttons.triangle.disabled = disableButtons;
+        }
+
+        /**
+         * Resolves the outcome of two colliding fireballs based on Rock-Paper-Scissors logic.
+         * @param {Fireball} fb1 - First fireball.
+         * @param {Fireball} fb2 - Second fireball.
+         * @returns {string} 'p1_wins', 'p2_wins', or 'draw'.
+         */
+        function resolveCollision(fb1, fb2) {
+            const rules = {
+                'square': 'triangle',   // Paper (Square) beats Rock (Circle)
+                'circle': 'square',     // Rock (Circle) beats Scissors (Triangle)
+                'triangle': 'circle'    // Scissors (Triangle) beats Paper (Square)
+            };
+
+            // Player 1's fireball is fb1, Player 2's fireball is fb2
+            if (fb1.shape === fb2.shape) {
+                return 'draw';
+            } else if (rules[fb1.shape] === fb2.shape) {
+                return 'p1_wins'; // P1's shape beats P2's shape
+            } else {
+                return 'p2_wins'; // P2's shape beats P1's shape
+            }
+        }
+
+        /**
+         * Main game update loop.
+         * @param {number} currentTime - Current timestamp from performance.now().
+         */
+        function gameLoop(currentTime) {
+            if (!gameActive) {
+                return; // Stop loop if game is over
+            }
+
+            const deltaTime = (currentTime - lastUpdateTime) / 1000; // Delta time in seconds
+            lastUpdateTime = currentTime;
+
+            // Regenerate fireball energy
+            player1.fireballEnergy = Math.min(GAME_CONFIG.MAX_FIREBALL_ENERGY, player1.fireballEnergy + GAME_CONFIG.ENERGY_REGEN_RATE * deltaTime);
+            player2.fireballEnergy = Math.min(GAME_CONFIG.MAX_FIREBALL_ENERGY, player2.fireballEnergy + GAME_CONFIG.ENERGY_REGEN_RATE * deltaTime);
+
+            // Update fireballs and check for collisions/out of bounds
+            player1.fireballs.forEach(fb => fb.update(deltaTime));
+            player2.fireballs.forEach(fb => fb.update(deltaTime));
+
+            // Collision detection
+            for (let i = player1.fireballs.length - 1; i >= 0; i--) {
+                const p1Fb = player1.fireballs[i];
+                for (let j = player2.fireballs.length - 1; j >= 0; j--) {
+                    const p2Fb = player2.fireballs[j];
+
+                    // Check for collision (distance between centers)
+                    const distance = Math.sqrt(
+                        Math.pow(p1Fb.x - p2Fb.x, 2) + Math.pow(p1Fb.y - p2Fb.y, 2)
+                    );
+
+                    if (distance < p1Fb.radius + p2Fb.radius) {
+                        // Collision detected!
+                        const result = resolveCollision(p1Fb, p2Fb);
+
+                        if (result === 'p1_wins') {
+                            player2.health -= GAME_CONFIG.DAMAGE_ON_WIN;
+                        } else if (result === 'p2_wins') {
+                            player1.health -= GAME_CONFIG.DAMAGE_ON_WIN;
+                        }
+                        // If draw, no damage is dealt
+
+                        // Remove both fireballs after collision
+                        player1.fireballs.splice(i, 1);
+                        player2.fireballs.splice(j, 1);
+                        break; // Break inner loop as p2Fb might have been removed
+                    }
+                }
+            }
+
+            // Remove fireballs that are out of bounds
+            player1.fireballs = player1.fireballs.filter(fb => fb.y < canvas.height + fb.radius); // P1 fireballs move down, remove if below canvas
+            player2.fireballs = player2.fireballs.filter(fb => fb.y > -fb.radius); // P2 fireballs move up, remove if above canvas
+
+            // Update UI meters
+            updateMeters(player1);
+            updateMeters(player2);
+
+            // Check for game over
+            checkGameOver();
+
+            // Redraw game elements
+            drawGame();
+
+            // Request next frame
+            requestAnimationFrame(gameLoop);
+        }
+
+        /**
+         * Draws all game elements on the canvas.
+         */
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+            // Draw fireballs
+            player1.fireballs.forEach(fb => fb.draw());
+            player2.fireballs.forEach(fb => fb.draw());
+        }
+
+        /**
+         * Checks if the game is over and displays the appropriate message.
+         */
+        function checkGameOver() {
+            if (player1.health <= 0) {
+                player1.health = 0; // Cap health at 0
+                endGame("Player Two Wins!");
+            } else if (player2.health <= 0) {
+                player2.health = 0; // Cap health at 0
+                endGame("Player One Wins!");
+            }
+        }
+
+        /**
+         * Ends the game and displays a message.
+         * @param {string} message - The message to display.
+         */
+        function endGame(message) {
+            gameActive = false;
+            messageText.textContent = message;
+            gameMessage.style.display = 'block';
+        }
+
+        /**
+         * Resets the game to its initial state.
+         */
+        function resetGame() {
+            player1.health = GAME_CONFIG.MAX_HEALTH;
+            player1.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY;
+            player1.fireballs = [];
+            player1.lastFiredShape = null;
+            player1.canFire = true;
+
+            player2.health = GAME_CONFIG.MAX_HEALTH;
+            player2.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY;
+            player2.fireballs = [];
+            player2.lastFiredShape = null;
+            player2.canFire = true;
+
+            updateMeters(player1);
+            updateMeters(player2);
+
+            gameMessage.style.display = 'none';
+            gameActive = true;
+            lastUpdateTime = performance.now(); // Reset timer for smooth start
+            requestAnimationFrame(gameLoop); // Start the game loop again
+        }
+
+        // Event Listeners for Player 1 buttons
+        player1.buttons.square.addEventListener('click', () => fireFireball(player1, 'square'));
+        player1.buttons.circle.addEventListener('click', () => fireFireball(player1, 'circle'));
+        player1.buttons.triangle.addEventListener('click', () => fireFireball(player1, 'triangle'));
+
+        // Event Listeners for Player 2 buttons
+        player2.buttons.square.addEventListener('click', () => fireFireball(player2, 'square'));
+        player2.buttons.circle.addEventListener('click', () => fireFireball(player2, 'circle'));
+        player2.buttons.triangle.addEventListener('click', () => fireFireball(player2, 'triangle'));
+
+        // Add touch event listeners for better mobile responsiveness
+        // Note: 'click' events generally work on touch, but 'touchstart' can feel more immediate.
+        // We'll add touchstart and prevent default to avoid potential issues like double-tap zoom.
+        [player1.buttons.square, player1.buttons.circle, player1.buttons.triangle,
+         player2.buttons.square, player2.buttons.circle, player2.buttons.triangle].forEach(button => {
+            button.addEventListener('touchstart', function(e) {
+                e.preventDefault(); // Prevent default touch behavior (e.g., scrolling, zoom)
+                this.click(); // Trigger click event
+            }, { passive: false }); // Use passive: false to allow preventDefault
+        });
+
+
+        // Restart button event listener
+        restartButton.addEventListener('click', resetGame);
+
+        // Initial setup
+        window.addEventListener('load', () => {
+            resizeCanvas(); // Set initial canvas size
+            lastUpdateTime = performance.now(); // Initialize last update time
+            requestAnimationFrame(gameLoop); // Start the game loop
+        });
+
+        // Handle window resizing
+        window.addEventListener('resize', resizeCanvas);
+
+    </script>
+</body>
+</html>
