@@ -24,6 +24,7 @@
             color: #e2e8f0; /* Light text */
             margin: 0; /* Remove default body margin */
             padding: 0; /* Remove default body padding */
+            overflow: hidden; /* Prevent body scrolling */
         }
 
         .game-container {
@@ -31,9 +32,8 @@
             flex-direction: column;
             width: 100%;
             max-width: 600px; /* Max width for larger screens */
-            height: 100%; /* Changed from min-height: 100vh to height: 100% */
-            /* This makes the game-container take 100% of the body's available height,
-               which is already set to min-height: 100vh. */
+            /* This controls the overall game height. Using 100vh ensures it takes the full viewport height. */
+            height: 100vh; /* Set to 100% of viewport height for better fitting on iPads */
             margin: auto;
             background-color: #2d3748; /* Slightly lighter dark background */
             border-radius: 1rem;
@@ -143,6 +143,8 @@
             width: 100%;
             touch-action: none; /* Prevent default touch actions like scrolling/zooming */
             order: 2; /* Canvas in the middle */
+            /* This ensures the canvas fills the remaining space within the game-container */
+            height: auto; /* Allow canvas to adjust its height based on flex-grow */
         }
 
         .game-message {
@@ -184,12 +186,82 @@
             to { opacity: 1; transform: translate(-50%, -50%); }
         }
 
-        /* Fireball styling (drawn on canvas) */
-        /* No CSS for fireballs directly, they are drawn in JS */
+        /* Start Screen Styling */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200; /* Above game-message */
+            color: #fff;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        #start-screen h1 {
+            font-size: 3.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #f59e0b; /* Orange title */
+            text-shadow: 0 0 10px rgba(255, 165, 0, 0.5);
+        }
+
+        #start-screen p {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #start-screen .rule-icon {
+            width: 1.2em;
+            height: 1.2em;
+            fill: #fff;
+            vertical-align: middle;
+        }
+
+        #start-game-button {
+            padding: 1rem 2rem;
+            background: linear-gradient(145deg, #48bb78, #38a169); /* Green gradient */
+            color: white;
+            font-size: 1.8rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.4), inset 0 3px 5px rgba(255, 255, 255, 0.3);
+            transition: transform 0.1s ease, background 0.2s ease;
+        }
+
+        #start-game-button:active {
+            transform: translateY(3px);
+            box-shadow: 0 3px 5px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+            background: linear-gradient(145deg, #38a169, #48bb78);
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <h1>Shapes</h1>
+            <p>
+                <svg class="rule-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /></svg>
+                &lt;
+                <svg class="rule-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /></svg>
+                &lt;
+                <svg class="rule-icon" viewBox="0 0 24 24"><path d="M12 2L3 22h18z" /></svg>
+            </p>
+            <button id="start-game-button">Start Game</button>
+        </div>
+
         <!-- Player One Area (Top) -->
         <div class="player-area player-one">
             <h2 class="text-xl font-semibold mb-2">Player One</h2>
@@ -253,7 +325,7 @@
             </div>
         </div>
 
-        <!-- Game Over Message -->
+        <!-- Game Over / Countdown Message -->
         <div id="game-message" class="game-message">
             <p id="message-text"></p>
             <button id="restart-button">Restart Game</button>
@@ -272,9 +344,10 @@
             FIREBALL_COST: 30,
             ENERGY_REGEN_RATE: 10, // Energy per second
             FIREBALL_SPEED: 200, // Pixels per second
-            DAMAGE_ON_WIN: 25,
+            DAMAGE_ON_PLAYER_HIT: 25, // Damage dealt when a fireball hits a player
             FIREBALL_RADIUS: 20,
-            GAME_UPDATE_INTERVAL: 1000 / 60 // 60 FPS
+            GAME_UPDATE_INTERVAL: 1000 / 60, // 60 FPS
+            PLAYER_HIT_ZONE_OFFSET: 50 // Distance from canvas edge for player hit detection
         };
 
         // Player states
@@ -310,12 +383,17 @@
 
         // Game state variables
         let lastUpdateTime = 0;
-        let gameActive = true;
+        let gameActive = false; // Game starts inactive, waiting for start screen
+        let countdownInterval = null;
 
         // Game message elements
         const gameMessage = document.getElementById('game-message');
         const messageText = document.getElementById('message-text');
         const restartButton = document.getElementById('restart-button');
+
+        // Start screen elements
+        const startScreen = document.getElementById('start-screen');
+        const startGameButton = document.getElementById('start-game-button');
 
         /**
          * Resizes the canvas to fill its container.
@@ -344,6 +422,7 @@
                 this.direction = direction;
                 this.radius = GAME_CONFIG.FIREBALL_RADIUS;
                 this.color = this.getShapeColor(shape);
+                this.isHit = false; // New flag to mark if fireball has hit something (another fireball or a player)
             }
 
             /**
@@ -365,7 +444,9 @@
              * @param {number} deltaTime - Time elapsed since last update in seconds.
              */
             update(deltaTime) {
-                this.y += this.direction * GAME_CONFIG.FIREBALL_SPEED * deltaTime;
+                if (!this.isHit) { // Only update position if not hit
+                    this.y += this.direction * GAME_CONFIG.FIREBALL_SPEED * deltaTime;
+                }
             }
 
             /**
@@ -444,8 +525,8 @@
             player.healthFill.style.width = `${(player.health / GAME_CONFIG.MAX_HEALTH) * 100}%`;
             player.fireballFill.style.width = `${(player.fireballEnergy / GAME_CONFIG.MAX_FIREBALL_ENERGY) * 100}%`;
 
-            // Disable buttons if not enough energy
-            const disableButtons = player.fireballEnergy < GAME_CONFIG.FIREBALL_COST;
+            // Disable buttons if not enough energy or game is not active
+            const disableButtons = player.fireballEnergy < GAME_CONFIG.FIREBALL_COST || !gameActive;
             player.buttons.square.disabled = disableButtons;
             player.buttons.circle.disabled = disableButtons;
             player.buttons.triangle.disabled = disableButtons;
@@ -490,15 +571,18 @@
             player1.fireballEnergy = Math.min(GAME_CONFIG.MAX_FIREBALL_ENERGY, player1.fireballEnergy + GAME_CONFIG.ENERGY_REGEN_RATE * deltaTime);
             player2.fireballEnergy = Math.min(GAME_CONFIG.MAX_FIREBALL_ENERGY, player2.fireballEnergy + GAME_CONFIG.ENERGY_REGEN_RATE * deltaTime);
 
-            // Update fireballs and check for collisions/out of bounds
+            // Update fireballs positions
             player1.fireballs.forEach(fb => fb.update(deltaTime));
             player2.fireballs.forEach(fb => fb.update(deltaTime));
 
-            // Collision detection
+            // Fireball-on-fireball collision detection
             for (let i = player1.fireballs.length - 1; i >= 0; i--) {
                 const p1Fb = player1.fireballs[i];
+                if (p1Fb.isHit) continue; // Skip if already marked for removal
+
                 for (let j = player2.fireballs.length - 1; j >= 0; j--) {
                     const p2Fb = player2.fireballs[j];
+                    if (p2Fb.isHit) continue; // Skip if already marked for removal
 
                     // Check for collision (distance between centers)
                     const distance = Math.sqrt(
@@ -510,23 +594,46 @@
                         const result = resolveCollision(p1Fb, p2Fb);
 
                         if (result === 'p1_wins') {
-                            player2.health -= GAME_CONFIG.DAMAGE_ON_WIN;
+                            p2Fb.isHit = true; // Mark P2's fireball for removal
                         } else if (result === 'p2_wins') {
-                            player1.health -= GAME_CONFIG.DAMAGE_ON_WIN;
+                            p1Fb.isHit = true; // Mark P1's fireball for removal
+                        } else { // Draw
+                            p1Fb.isHit = true; // Mark both for removal
+                            p2Fb.isHit = true;
                         }
-                        // If draw, no damage is dealt
-
-                        // Remove both fireballs after collision
-                        player1.fireballs.splice(i, 1);
-                        player2.fireballs.splice(j, 1);
-                        break; // Break inner loop as p2Fb might have been removed
+                        // No health damage here, winning fireball continues
                     }
                 }
             }
 
-            // Remove fireballs that are out of bounds
-            player1.fireballs = player1.fireballs.filter(fb => fb.y < canvas.height + fb.radius); // P1 fireballs move down, remove if below canvas
-            player2.fireballs = player2.fireballs.filter(fb => fb.y > -fb.radius); // P2 fireballs move up, remove if above canvas
+            // Player hit detection (after fireball-on-fireball collisions are resolved)
+            // Player 1's fireballs (moving down) hitting Player 2
+            const player2HitZoneY = canvas.height - GAME_CONFIG.PLAYER_HIT_ZONE_OFFSET;
+            for (let i = player1.fireballs.length - 1; i >= 0; i--) {
+                const p1Fb = player1.fireballs[i];
+                if (p1Fb.isHit) continue; // Skip if already marked for removal
+
+                if (p1Fb.y + p1Fb.radius >= player2HitZoneY) {
+                    player2.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
+                    p1Fb.isHit = true; // Mark for removal
+                }
+            }
+
+            // Player 2's fireballs (moving up) hitting Player 1
+            const player1HitZoneY = GAME_CONFIG.PLAYER_HIT_ZONE_OFFSET;
+            for (let i = player2.fireballs.length - 1; i >= 0; i--) {
+                const p2Fb = player2.fireballs[i];
+                if (p2Fb.isHit) continue; // Skip if already marked for removal
+
+                if (p2Fb.y - p2Fb.radius <= player1HitZoneY) {
+                    player1.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
+                    p2Fb.isHit = true; // Mark for removal
+                }
+            }
+
+            // Remove fireballs that are out of bounds or have hit something
+            player1.fireballs = player1.fireballs.filter(fb => !fb.isHit && fb.y < canvas.height + fb.radius);
+            player2.fireballs = player2.fireballs.filter(fb => !fb.isHit && fb.y > -fb.radius);
 
             // Update UI meters
             updateMeters(player1);
@@ -574,6 +681,43 @@
             gameActive = false;
             messageText.textContent = message;
             gameMessage.style.display = 'block';
+            restartButton.style.display = 'block'; // Ensure restart button is visible
+        }
+
+        /**
+         * Displays the start screen.
+         */
+        function showStartScreen() {
+            startScreen.style.display = 'flex';
+            gameMessage.style.display = 'none'; // Ensure game message is hidden
+            restartButton.style.display = 'none'; // Ensure restart button is hidden
+            gameActive = false; // Game is not active during start screen
+            updateMeters(player1); // Update button states
+            updateMeters(player2);
+        }
+
+        /**
+         * Starts the game countdown.
+         */
+        function startGameCountdown() {
+            startScreen.style.display = 'none';
+            gameMessage.style.display = 'block';
+            restartButton.style.display = 'none'; // Hide restart button during countdown
+
+            const countdownMessages = ["Rock", "Paper", "Scissors", "Shoot!"];
+            let count = 0;
+
+            messageText.textContent = countdownMessages[count];
+            countdownInterval = setInterval(() => {
+                count++;
+                if (count < countdownMessages.length) {
+                    messageText.textContent = countdownMessages[count];
+                } else {
+                    clearInterval(countdownInterval);
+                    gameMessage.style.display = 'none';
+                    resetGame(); // Reset and start the game
+                }
+            }, 1000); // 1 second per message
         }
 
         /**
@@ -596,7 +740,7 @@
             updateMeters(player2);
 
             gameMessage.style.display = 'none';
-            gameActive = true;
+            gameActive = true; // Game is now active
             lastUpdateTime = performance.now(); // Reset timer for smooth start
             requestAnimationFrame(gameLoop); // Start the game loop again
         }
@@ -626,11 +770,18 @@
         // Restart button event listener
         restartButton.addEventListener('click', resetGame);
 
+        // Start Game button listener
+        startGameButton.addEventListener('click', startGameCountdown);
+        startGameButton.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            this.click();
+        }, { passive: false });
+
+
         // Initial setup
         window.addEventListener('load', () => {
             resizeCanvas(); // Set initial canvas size
-            lastUpdateTime = performance.now(); // Initialize last update time
-            requestAnimationFrame(gameLoop); // Start the game loop
+            showStartScreen(); // Show the start screen first
         });
 
         // Handle window resizing
