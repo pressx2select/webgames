@@ -1,8 +1,9 @@
 # webgames
-simple fun HTML games.  mostly made with AI
+simple fun html games.  mostly made with ai
 
 
-# list of games
-Jump Shoot
+## desktop
+jump shoot https://pressx2select.github.io/jump_shoot/jump_shoot.html
 
-Squares
+## mobile
+squares https://pressx2select.github.io/webgames/squares.html
