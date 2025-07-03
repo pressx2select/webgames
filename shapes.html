@@ -20,11 +20,12 @@
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
-            min-height: 100vh; /* Ensure body takes full height */
+            min-height: 100vh; /* Ensure body takes at least full viewport height */
             color: #e2e8f0; /* Light text */
             margin: 0; /* Remove default body margin */
             padding: 0; /* Remove default body padding */
-            overflow: hidden; /* Prevent body scrolling */
+            /* Removed overflow: hidden from body to allow content to push if needed,
+               though game-container should manage its own overflow if necessary. */
         }
 
         .game-container {
@@ -32,8 +33,9 @@
             flex-direction: column;
             width: 100%;
             max-width: 600px; /* Max width for larger screens */
-            /* This controls the overall game height. Using 100vh ensures it takes the full viewport height. */
-            height: 100vh; /* Set to 100% of viewport height for better fitting on iPads */
+            /* This controls the overall game height. Using 100% makes it fill the parent's height. */
+            /* The parent (body) has min-height: 100vh, so this ensures the game fits. */
+            height: 100%; /* Changed from 100vh back to 100% to fit within parent's available space */
             margin: auto;
             background-color: #2d3748; /* Slightly lighter dark background */
             border-radius: 1rem;
