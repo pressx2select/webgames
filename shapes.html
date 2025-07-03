@@ -66,29 +66,33 @@
 
         .meters-container {
             display: flex;
+            flex-direction: column; /* Stack meters vertically */
             width: 100%;
-            justify-content: space-around;
+            gap: 0.5rem; /* Space between stacked meters */
             margin-bottom: 0.5rem;
         }
 
         .meter {
-            width: 48%;
+            width: 100%; /* Meters now take full width of their container */
             height: 1rem;
             background-color: #4a5568;
             border-radius: 0.5rem;
             overflow: hidden;
             border: 1px solid #4a5568;
+            position: relative; /* Needed for positioning meter-fill */
         }
 
         .meter-fill {
             height: 100%;
-            transition: width 0.1s linear;
+            width: 100%; /* Meter fill always takes 100% width, then scaled */
+            position: absolute;
+            top: 0;
+            left: 0; /* Align to left, then scale from center */
+            transition: transform 0.1s linear, background-color 0.2s ease; /* Transition for scaleX and color */
+            transform-origin: center; /* Shrink towards the center */
         }
 
-        .health-meter .meter-fill {
-            background-color: #ef4444; /* Red for health */
-        }
-
+        /* Health meter colors will be set by JS dynamically */
         .fireball-meter .meter-fill {
             background-color: #f59e0b; /* Orange for fireball energy */
         }
@@ -154,7 +158,7 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.8);
+            background-color: rgba(0, 0, 0, 0.8); /* Black background for countdown */
             padding: 1.5rem 2.5rem;
             border-radius: 1rem;
             color: #fff;
@@ -240,6 +244,10 @@
             cursor: pointer;
             box-shadow: 0 6px 10px rgba(0, 0, 0, 0.4), inset 0 3px 5px rgba(255, 255, 255, 0.3);
             transition: transform 0.1s ease, background 0.2s ease;
+            display: flex; /* Make button content flex for icon alignment */
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem; /* Space between icons */
         }
 
         #start-game-button:active {
@@ -247,38 +255,85 @@
             box-shadow: 0 3px 5px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.3);
             background: linear-gradient(145deg, #38a169, #48bb78);
         }
+
+        /* Styling for countdown shapes */
+        .countdown-icon {
+            width: 3em; /* Larger size for countdown */
+            height: 3em;
+        }
+
+        /* End Screen Overlay and Indicators */
+        #end-screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0); /* Transparent background */
+            display: flex;
+            flex-direction: column; /* Arrange indicators vertically */
+            justify-content: space-around; /* Space out the two indicators vertically */
+            align-items: center; /* Center horizontally */
+            z-index: 150; /* Between game-message and start-screen */
+            display: none; /* Hidden by default */
+        }
+
+        .end-game-indicator {
+            width: 5rem; /* Larger size for end game buttons */
+            height: 5rem;
+            border-radius: 50%; /* Make it a circle */
+            border: 4px solid #fff;
+            box-shadow: 0 0 20px rgba(255,255,255,0.7);
+            cursor: pointer; /* Indicate it's clickable */
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .end-game-indicator:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 10px rgba(255,255,255,0.7);
+        }
+        .end-game-indicator.winner {
+            background-color: #48bb78; /* Green */
+        }
+        .end-game-indicator.loser {
+            background-color: #ef4444; /* Red */
+        }
+
+        /* Specific spacing for Player One's buttons and meters */
+        .player-area.player-one .buttons-container {
+            margin-bottom: 1.5rem; /* Increased spacing between buttons and meters for P1 */
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
         <!-- Start Screen -->
         <div id="start-screen">
-            <h1>Shapes</h1>
-            <p>
+            <!-- Removed <h1>Shapes</h1> -->
+            <p style="font-size: 1.5rem; margin-bottom: 2rem;">
+                v0.1
+            </p>
+            <button id="start-game-button">
+                <!-- Moved rule icons into the button -->
                 <svg class="rule-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /></svg>
                 &lt;
                 <svg class="rule-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /></svg>
                 &lt;
-                <svg class="rule-icon" viewBox="0 0 24 24"><path d="M12 2L3 22h18z" /></svg>
-            </p>
-            <button id="start-game-button">Start Game</button>
+                <svg class="rule-icon" viewBox="0 0 24 24"><path d="M12 22L3 2h18z" /></svg> <!-- Flipped triangle for start screen -->
+                <!-- Removed "Start Game" text -->
+            </button>
         </div>
 
         <!-- Player One Area (Top) -->
         <div class="player-area player-one">
-            <h2 class="text-xl font-semibold mb-2">Player One</h2>
-            <div class="meters-container">
-                <div class="meter health-meter">
-                    <div id="p1-health-fill" class="meter-fill bg-red-500" style="width: 100%;"></div>
-                </div>
-                <div class="meter fireball-meter">
-                    <div id="p1-fireball-fill" class="meter-fill bg-orange-500" style="width: 100%;"></div>
-                </div>
-            </div>
+            <!-- Removed <h2>Player One</h2> -->
             <div class="buttons-container">
-                <button id="p1-square" class="fire-button" data-shape="square">
+                <!-- Swapped order for Player One buttons -->
+                <button id="p1-triangle" class="fire-button" data-shape="triangle">
                     <svg class="button-icon" viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <path d="M12 22L3 2h18z" /> <!-- Flipped triangle for Player One -->
                     </svg>
                 </button>
                 <button id="p1-circle" class="fire-button" data-shape="circle">
@@ -286,12 +341,21 @@
                         <circle cx="12" cy="12" r="9" />
                     </svg>
                 </button>
-                <button id="p1-triangle" class="fire-button" data-shape="triangle">
+                <button id="p1-square" class="fire-button" data-shape="square">
                     <svg class="button-icon" viewBox="0 0 24 24">
-                        <path d="M12 2L3 22h18z" />
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                     </svg>
                 </button>
             </div>
+            <div class="meters-container">
+                <div class="meter health-meter">
+                    <div id="p1-health-fill" class="meter-fill" style="transform: scaleX(1);"></div>
+                </div>
+                <div class="meter fireball-meter">
+                    <div id="p1-fireball-fill" class="meter-fill" style="transform: scaleX(1);"></div>
+                </div>
+            </div>
+            <!-- Removed outcome indicator from here -->
         </div>
 
         <!-- Game Canvas -->
@@ -299,13 +363,14 @@
 
         <!-- Player Two Area (Bottom) -->
         <div class="player-area player-two">
-            <h2 class="text-xl font-semibold mb-2">Player Two</h2>
+            <!-- Removed <h2>Player Two</h2> -->
             <div class="meters-container">
-                <div class="meter health-meter">
-                    <div id="p2-health-fill" class="meter-fill bg-red-500" style="width: 100%;"></div>
-                </div>
+                <!-- Swapped order for Player Two meters -->
                 <div class="meter fireball-meter">
-                    <div id="p2-fireball-fill" class="meter-fill bg-orange-500" style="width: 100%;"></div>
+                    <div id="p2-fireball-fill" class="meter-fill" style="transform: scaleX(1);"></div>
+                </div>
+                <div class="meter health-meter">
+                    <div id="p2-health-fill" class="meter-fill" style="transform: scaleX(1);"></div>
                 </div>
             </div>
             <div class="buttons-container">
@@ -325,12 +390,19 @@
                     </svg>
                 </button>
             </div>
+            <!-- Removed outcome indicator from here -->
         </div>
 
-        <!-- Game Over / Countdown Message -->
+        <!-- Game Over / Countdown Message (now only for countdown) -->
         <div id="game-message" class="game-message">
             <p id="message-text"></p>
-            <button id="restart-button">Restart Game</button>
+            <!-- Restart button is now handled by end-game indicators -->
+        </div>
+
+        <!-- New End Screen Overlay with Indicators -->
+        <div id="end-screen-overlay">
+            <div id="p1-end-indicator" class="end-game-indicator"></div>
+            <div id="p2-end-indicator" class="end-game-indicator"></div>
         </div>
     </div>
 
@@ -365,7 +437,8 @@
                 triangle: document.getElementById('p1-triangle')
             },
             healthFill: document.getElementById('p1-health-fill'),
-            fireballFill: document.getElementById('p1-fireball-fill')
+            fireballFill: document.getElementById('p1-fireball-fill'),
+            endIndicator: document.getElementById('p1-end-indicator') // New: End game indicator
         };
 
         let player2 = {
@@ -380,7 +453,8 @@
                 triangle: document.getElementById('p2-triangle')
             },
             healthFill: document.getElementById('p2-health-fill'),
-            fireballFill: document.getElementById('p2-fireball-fill')
+            fireballFill: document.getElementById('p2-fireball-fill'),
+            endIndicator: document.getElementById('p2-end-indicator') // New: End game indicator
         };
 
         // Game state variables
@@ -388,14 +462,16 @@
         let gameActive = false; // Game starts inactive, waiting for start screen
         let countdownInterval = null;
 
-        // Game message elements
+        // Game message elements (now primarily for countdown)
         const gameMessage = document.getElementById('game-message');
         const messageText = document.getElementById('message-text');
-        const restartButton = document.getElementById('restart-button');
 
         // Start screen elements
         const startScreen = document.getElementById('start-screen');
         const startGameButton = document.getElementById('start-game-button');
+
+        // End screen overlay
+        const endScreenOverlay = document.getElementById('end-screen-overlay');
 
         /**
          * Resizes the canvas to fill its container.
@@ -469,9 +545,16 @@
                         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                         break;
                     case 'triangle':
-                        ctx.moveTo(this.x, this.y - this.radius);
-                        ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6));
-                        ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6));
+                        // Player 1's triangle points down, Player 2's points up
+                        if (this.direction === 1) { // Player 1's fireball (moving down)
+                            ctx.moveTo(this.x, this.y + this.radius); // Bottom point
+                            ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-left
+                            ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-right
+                        } else { // Player 2's fireball (moving up)
+                            ctx.moveTo(this.x, this.y - this.radius); // Top point
+                            ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-right
+                            ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-left
+                        }
                         ctx.closePath();
                         break;
                 }
@@ -479,6 +562,29 @@
                 ctx.stroke();
                 ctx.restore();
             }
+        }
+
+        /**
+         * Helper to generate SVG for countdown shapes with a specific color.
+         * @param {string} shape - The shape ('square', 'circle', 'triangle').
+         * @param {string} color - The fill color for the SVG.
+         * @returns {string} The SVG string.
+         */
+        function getCountdownShapeSVG(shape, color) {
+            let path = '';
+            switch (shape) {
+                case 'square':
+                    path = '<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />';
+                    break;
+                case 'circle':
+                    path = '<circle cx="12" cy="12" r="9" />';
+                    break;
+                case 'triangle':
+                    // Countdown triangle points down for consistency with P1's attack direction
+                    path = '<path d="M12 22L3 2h18z" />';
+                    break;
+            }
+            return `<svg class="countdown-icon" style="fill:${color};" viewBox="0 0 24 24">${path}</svg>`;
         }
 
         /**
@@ -524,8 +630,26 @@
          * @param {object} player - The player object.
          */
         function updateMeters(player) {
-            player.healthFill.style.width = `${(player.health / GAME_CONFIG.MAX_HEALTH) * 100}%`;
-            player.fireballFill.style.width = `${(player.fireballEnergy / GAME_CONFIG.MAX_FIREBALL_ENERGY) * 100}%`;
+            // Calculate scale factor for meters (0 to 1)
+            const healthScale = player.health / GAME_CONFIG.MAX_HEALTH;
+            const fireballScale = player.fireballEnergy / GAME_CONFIG.MAX_FIREBALL_ENERGY;
+
+            // Determine health bar color
+            let healthColor;
+            if (player.health > GAME_CONFIG.MAX_HEALTH * 0.75) {
+                healthColor = '#48bb78'; // Green
+            }
+            else if (player.health > GAME_CONFIG.MAX_HEALTH * 0.33) {
+                healthColor = '#f6e05e'; // Yellow
+            }
+            else {
+                healthColor = '#ef4444'; // Red
+            }
+            player.healthFill.style.backgroundColor = healthColor;
+
+            // Apply scale transform to meter fills
+            player.healthFill.style.transform = `scaleX(${healthScale})`;
+            player.fireballFill.style.transform = `scaleX(${fireballScale})`;
 
             // Disable buttons if not enough energy or game is not active
             const disableButtons = player.fireballEnergy < GAME_CONFIG.FIREBALL_COST || !gameActive;
@@ -668,22 +792,34 @@
         function checkGameOver() {
             if (player1.health <= 0) {
                 player1.health = 0; // Cap health at 0
-                endGame("Player Two Wins!");
+                endGame("player2"); // Pass winner ID
             } else if (player2.health <= 0) {
                 player2.health = 0; // Cap health at 0
-                endGame("Player One Wins!");
+                endGame("player1"); // Pass winner ID
             }
         }
 
         /**
-         * Ends the game and displays a message.
-         * @param {string} message - The message to display.
+         * Ends the game and displays outcome indicators.
+         * @param {string} winnerId - 'player1' or 'player2'.
          */
-        function endGame(message) {
+        function endGame(winnerId) {
             gameActive = false;
-            messageText.textContent = message;
-            gameMessage.style.display = 'block';
-            restartButton.style.display = 'block'; // Ensure restart button is visible
+            gameMessage.style.display = 'none'; // Hide countdown message box
+            endScreenOverlay.style.display = 'flex'; // Show the end screen overlay
+
+            // Reset classes
+            player1.endIndicator.classList.remove('winner', 'loser');
+            player2.endIndicator.classList.remove('winner', 'loser');
+
+            // Apply winner/loser classes
+            if (winnerId === 'player1') {
+                player1.endIndicator.classList.add('winner');
+                player2.endIndicator.classList.add('loser');
+            } else { // winnerId === 'player2'
+                player1.endIndicator.classList.add('loser');
+                player2.endIndicator.classList.add('winner');
+            }
         }
 
         /**
@@ -692,7 +828,7 @@
         function showStartScreen() {
             startScreen.style.display = 'flex';
             gameMessage.style.display = 'none'; // Ensure game message is hidden
-            restartButton.style.display = 'none'; // Ensure restart button is hidden
+            endScreenOverlay.style.display = 'none'; // Ensure end screen is hidden
             gameActive = false; // Game is not active during start screen
             updateMeters(player1); // Update button states
             updateMeters(player2);
@@ -703,20 +839,26 @@
          */
         function startGameCountdown() {
             startScreen.style.display = 'none';
-            gameMessage.style.display = 'block';
-            restartButton.style.display = 'none'; // Hide restart button during countdown
+            gameMessage.style.display = 'block'; // Show countdown message box
+            endScreenOverlay.style.display = 'none'; // Hide end screen during countdown
 
-            const countdownMessages = ["Rock", "Paper", "Scissors", "Shoot!"];
+
+            const countdownMessages = [
+                getCountdownShapeSVG('square', 'red'),
+                getCountdownShapeSVG('circle', 'yellow'),
+                getCountdownShapeSVG('triangle', 'green'),
+                "Shoot!"
+            ];
             let count = 0;
 
-            messageText.textContent = countdownMessages[count];
+            messageText.innerHTML = countdownMessages[count]; // Use innerHTML for SVG
             countdownInterval = setInterval(() => {
                 count++;
                 if (count < countdownMessages.length) {
-                    messageText.textContent = countdownMessages[count];
+                    messageText.innerHTML = countdownMessages[count]; // Use innerHTML for SVG
                 } else {
                     clearInterval(countdownInterval);
-                    gameMessage.style.display = 'none';
+                    gameMessage.style.display = 'none'; // Hide countdown message box after finished
                     resetGame(); // Reset and start the game
                 }
             }, 1000); // 1 second per message
@@ -742,6 +884,10 @@
             updateMeters(player2);
 
             gameMessage.style.display = 'none';
+            endScreenOverlay.style.display = 'none'; // Hide end screen overlay
+            player1.endIndicator.classList.remove('winner', 'loser');
+            player2.endIndicator.classList.remove('winner', 'loser');
+
             gameActive = true; // Game is now active
             lastUpdateTime = performance.now(); // Reset timer for smooth start
             requestAnimationFrame(gameLoop); // Start the game loop again
@@ -768,9 +914,12 @@
             }, { passive: false }); // Use passive: false to allow preventDefault
         });
 
+        // End game indicators now act as restart buttons
+        player1.endIndicator.addEventListener('click', resetGame);
+        player2.endIndicator.addEventListener('click', resetGame);
+        player1.endIndicator.addEventListener('touchstart', function(e) { e.preventDefault(); this.click(); }, { passive: false });
+        player2.endIndicator.addEventListener('touchstart', function(e) { e.preventDefault(); this.click(); }, { passive: false });
 
-        // Restart button event listener
-        restartButton.addEventListener('click', resetGame);
 
         // Start Game button listener
         startGameButton.addEventListener('click', startGameCountdown);
