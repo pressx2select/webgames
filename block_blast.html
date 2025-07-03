@@ -152,8 +152,8 @@
         /* Available pieces area */
         .pieces-container {
             display: flex;
-            justify-content: center;
-            gap: 15px;
+            justify-content: space-around; /* Distribute items evenly */
+            gap: 10px; /* Reduced gap for tighter fit */
             margin-top: 20px;
             padding: 15px;
             background-color: #f8f8f8;
@@ -165,6 +165,7 @@
         }
 
         .piece-slot {
+            flex-shrink: 0; /* Prevent slots from shrinking too much */
             width: 80px; /* Fixed size for piece slots */
             height: 80px;
             display: flex;
@@ -225,12 +226,12 @@
 
             .pieces-container {
                 flex-wrap: wrap; /* Allow pieces to wrap on smaller screens */
-                gap: 10px;
+                gap: 10px; /* Keep consistent gap */
                 padding: 10px;
             }
 
             .piece-slot {
-                width: 70px;
+                width: 70px; /* Slightly smaller for mobile */
                 height: 70px;
             }
 
@@ -261,7 +262,7 @@
     <div class="game-container">
         <!-- Start Screen -->
         <div id="startScreen">
-            <h1>block blast v0.3</h1>
+            <h1>block blast v0.4</h1>
             <!-- Z-Tetris piece will be drawn here -->
             <div id="startScreenPiece">
                 <canvas id="zPieceCanvas"></canvas>
@@ -860,10 +861,10 @@
             const pieceTopLeftX = coords.x - dragOffsetX;
             const pieceTopLeftY = coords.y - dragOffsetY;
 
-            // Convert pixel coordinates to board row/column
+            // Convert pixel coordinates to board row/column using Math.floor for snapping
             // Adjust for board padding
-            const targetCol = Math.round((pieceTopLeftX - BOARD_PADDING) / BLOCK_SIZE);
-            const targetRow = Math.round((pieceTopLeftY - BOARD_PADDING) / BLOCK_SIZE);
+            const targetCol = Math.floor((pieceTopLeftX - BOARD_PADDING) / BLOCK_SIZE);
+            const targetRow = Math.floor((pieceTopLeftY - BOARD_PADDING) / BLOCK_SIZE);
 
             if (canPlacePiece(draggedPiece, targetRow, targetCol)) {
                 placePiece(draggedPiece, targetRow, targetCol);
