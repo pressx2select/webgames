@@ -7,6 +7,11 @@
     <!-- Tailwind CSS CDN for basic styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Universal box-sizing for consistent layout */
+        * {
+            box-sizing: border-box;
+        }
+
         /* Custom CSS for game elements */
         body {
             font-family: 'Inter', sans-serif;
@@ -17,6 +22,8 @@
             align-items: center;
             min-height: 100vh; /* Ensure body takes full height */
             color: #e2e8f0; /* Light text */
+            margin: 0; /* Remove default body margin */
+            padding: 0; /* Remove default body padding */
         }
 
         .game-container {
@@ -24,7 +31,9 @@
             flex-direction: column;
             width: 100%;
             max-width: 600px; /* Max width for larger screens */
-            min-height: 100vh; /* Changed from height to min-height to allow content to fit */
+            height: 100%; /* Changed from min-height: 100vh to height: 100% */
+            /* This makes the game-container take 100% of the body's available height,
+               which is already set to min-height: 100vh. */
             margin: auto;
             background-color: #2d3748; /* Slightly lighter dark background */
             border-radius: 1rem;
