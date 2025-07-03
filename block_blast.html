@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>block blast</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Basic reset and font */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f0f4f8, #d9e2ec); /* Soft gradient background */
+            color: #333;
+            overflow: hidden; /* Prevent scrolling on mobile */
+            -webkit-user-select: none; /* Disable text selection for better game feel */
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Game container styling */
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            max-width: 90vw; /* Responsive width */
+            margin: 20px;
+            box-sizing: border-box;
+            position: relative; /* For absolute positioning of start screen */
+        }
+
+        /* Start Screen Styling - Updated for blocky feel */
+        #startScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ecf0f1; /* Matches board background */
+            border: 5px solid #34495e; /* Matches board border */
+            border-radius: 10px; /* Matches board border-radius */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10; /* Ensure it's on top */
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); /* Stronger shadow */
+        }
+
+        #startScreen h1 {
+            font-size: 3.5em; /* Slightly larger */
+            color: #34495e;
+            margin-bottom: 20px;
+            text-shadow: 4px 4px 0px rgba(0,0,0,0.2); /* Blocky text shadow */
+            letter-spacing: 2px; /* More spaced out letters */
+            /* New styles for the box around the title */
+            border: 3px solid #34495e; /* Solid border for the box */
+            padding: 15px 30px; /* Padding inside the box */
+            border-radius: 8px; /* Slightly rounded corners for the box */
+            background-color: rgba(255, 255, 255, 0.7); /* Slightly translucent background */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* Subtle shadow for the box */
+        }
+
+        /* Updated style for the Z-piece container on the start screen */
+        #startScreenPiece {
+            margin: 20px 0; /* Spacing above and below the piece */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 120px; /* Sufficient width for the piece */
+            height: 90px; /* Sufficient height for the piece */
+            /* Removed background-color, border, border-radius, and box-shadow */
+        }
+
+        #startScreenPiece canvas {
+            display: block; /* Remove extra space below canvas */
+        }
+
+
+        #startScreen .high-score-display {
+            font-size: 2em; /* More prominent */
+            font-weight: bold;
+            color: #27ae60;
+            margin-bottom: 35px; /* Slightly less margin */
+            padding: 10px 30px; /* Increased horizontal padding for width */
+            border: 3px solid #27ae60; /* Solid border for high score */
+            border-radius: 8px; /* Slightly rounded corners */
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            white-space: nowrap; /* Prevent text from wrapping */
+        }
+
+        /* Game Screen Styling (initially hidden) */
+        #gameScreen {
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Score and game over message */
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .game-over-message {
+            color: #e74c3c;
+            font-size: 1.8em;
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); opacity: 1; }
+            to { transform: scale(1.05); opacity: 0.8; }
+        }
+
+        /* Canvas styling */
+        canvas {
+            background-color: #ecf0f1; /* Light grey board background */
+            border: 5px solid #34495e; /* Dark border for the board */
+            border-radius: 10px;
+            display: block;
+            touch-action: none; /* Prevent browser default touch actions like scrolling/zooming */
+        }
+
+        /* Available pieces area */
+        .pieces-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f8f8;
+            border-radius: 15px;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 100px; /* Ensure space even if no pieces */
+        }
+
+        .piece-slot {
+            width: 80px; /* Fixed size for piece slots */
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #bdc3c7;
+            border-radius: 10px;
+            background-color: #f0f0f0;
+            position: relative;
+        }
+
+        .piece-slot.empty {
+            opacity: 0.7;
+        }
+
+        /* Play button */
+        .action-button { /* Re-using style for both start and play again buttons */
+            background: linear-gradient(135deg, #2ecc71, #27ae60); /* Green gradient */
+            color: white;
+            border: 3px solid #27ae60; /* Solid border for blocky feel */
+            padding: 15px 30px; /* Slightly larger padding */
+            border-radius: 8px; /* More angular than 30px */
+            font-size: 1.3em; /* Slightly larger font */
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(46, 204, 113, 0.5); /* Stronger shadow */
+            transition: all 0.3s ease;
+            margin-top: 25px; /* More spacing */
+            outline: none;
+            text-transform: uppercase; /* Make text uppercase */
+            letter-spacing: 1px;
+        }
+
+        .action-button:hover {
+            transform: translateY(-4px); /* More pronounced lift */
+            box-shadow: 0 10px 25px rgba(46, 204, 113, 0.7);
+        }
+
+        .action-button:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
+        }
+
+        /* Responsive adjustments for smaller screens (e.g., phones) */
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 15px;
+                margin: 10px;
+            }
+
+            .info-panel {
+                font-size: 1em;
+            }
+
+            .game-over-message {
+                font-size: 1.5em;
+            }
+
+            .pieces-container {
+                flex-wrap: wrap; /* Allow pieces to wrap on smaller screens */
+                gap: 10px;
+                padding: 10px;
+            }
+
+            .piece-slot {
+                width: 70px;
+                height: 70px;
+            }
+
+            .action-button {
+                padding: 10px 20px;
+                font-size: 1em;
+            }
+
+            #startScreen h1 {
+                font-size: 2.8em; /* Adjusted for smaller screens */
+                padding: 10px 20px; /* Adjusted padding for smaller screens */
+            }
+
+            #startScreen .high-score-display {
+                font-size: 1.6em;
+                padding: 10px 20px; /* Adjusted padding for smaller screens */
+            }
+
+            #startScreenPiece {
+                width: 100px;
+                height: 75px;
+                margin: 15px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Start Screen -->
+        <div id="startScreen">
+            <h1>block blast</h1>
+            <!-- Z-Tetris piece will be drawn here -->
+            <div id="startScreenPiece">
+                <canvas id="zPieceCanvas"></canvas>
+            </div>
+            <p class="high-score-display">high score: <span id="highScoreDisplayStart">0</span></p>
+            <button id="startButton" class="action-button">Start Game</button>
+        </div>
+
+        <!-- Main Game Screen -->
+        <div id="gameScreen">
+            <div class="info-panel">
+                <span>score: <span id="score">0</span></span>
+                <span>high score: <span id="highScoreDisplayGame">0</span></span>
+                <span id="gameOverMessage" class="game-over-message" style="display: none;">Game Over!</span>
+            </div>
+            <canvas id="gameCanvas"></canvas>
+            <div class="pieces-container" id="piecesContainer">
+                <!-- Piece slots will be generated here by JavaScript -->
+            </div>
+            <button id="playButton" class="action-button">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const playButton = document.getElementById('playButton');
+        const piecesContainer = document.getElementById('piecesContainer');
+
+        // New DOM elements for start screen and high score
+        const startScreen = document.getElementById('startScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const startButton = document.getElementById('startButton');
+        const highScoreDisplayStart = document.getElementById('highScoreDisplayStart');
+        const highScoreDisplayGame = document.getElementById('highScoreDisplayGame');
+        const zPieceCanvas = document.getElementById('zPieceCanvas'); // New canvas for Z-piece
+        const zPieceCtx = zPieceCanvas.getContext('2d'); // Context for Z-piece canvas
+
+        // Game configuration
+        const BOARD_ROWS = 10;
+        const BOARD_COLS = 10;
+        const BLOCK_SIZE = 30; // Size of each block in pixels
+        const BOARD_PADDING = 5; // Padding around the board blocks
+
+        // Calculate canvas dimensions based on block size and board dimensions
+        canvas.width = BOARD_COLS * BLOCK_SIZE + 2 * BOARD_PADDING;
+        canvas.height = BOARD_ROWS * BLOCK_SIZE + 2 * BOARD_PADDING;
+
+        // Game state variables
+        let board = [];
+        let currentPieces = []; // The 3 pieces available to the player
+        let draggedPiece = null;
+        let draggedPieceIndex = -1; // Index of the dragged piece in currentPieces
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let score = 0;
+        let highScore = 0; // High score variable
+        let gameOver = false;
+
+        // Define Tetris-like piece shapes and their colors
+        const PIECES = [
+            // Single block
+            { shape: [[1]], color: '#f39c12' }, // Orange
+
+            // 1x2, 2x1
+            { shape: [[1, 1]], color: '#3498db' }, // Blue
+            { shape: [[1], [1]], color: '#3498db' }, // Blue
+
+            // 1x3, 3x1
+            { shape: [[1, 1, 1]], color: '#9b59b6' }, // Amethyst
+            { shape: [[1], [1], [1]], color: '#9b59b6' }, // Amethyst
+
+            // 1x4, 4x1
+            { shape: [[1, 1, 1, 1]], color: '#e67e22' }, // Carrot
+            { shape: [[1], [1], [1], [1]], color: '#e67e22' }, // Carrot
+
+            // 1x5, 5x1
+            { shape: [[1, 1, 1, 1, 1]], color: '#d35400' }, // Pumpkin
+            { shape: [[1], [1], [1], [1], [1]], color: '#d35400' }, // Pumpkin
+
+            // 2x2 square
+            { shape: [[1, 1], [1, 1]], color: '#27ae60' }, // Green Sea
+
+            // L shapes
+            { shape: [[1, 0], [1, 0], [1, 1]], color: '#c0392b' }, // Alizarin (L-shape 1)
+            { shape: [[1, 1, 1], [1, 0, 0]], color: '#c0392b' }, // Alizarin (L-shape 2)
+            { shape: [[1, 1], [0, 1], [0, 1]], color: '#c0392b' }, // Alizarin (L-shape 3)
+            { shape: [[0, 0, 1], [1, 1, 1]], color: '#c0392b' }, // Alizarin (L-shape 4)
+
+            // T shapes
+            { shape: [[1, 1, 1], [0, 1, 0]], color: '#8e44ad' }, // Wisteria (T-shape 1)
+            { shape: [[0, 1], [1, 1], [0, 1]], color: '#8e44ad' }, // Wisteria (T-shape 2)
+
+            // Z/S shapes
+            { shape: [[1, 1, 0], [0, 1, 1]], color: '#f1c40f' }, // Sunflower (Z-shape)
+            { shape: [[0, 1, 1], [1, 1, 0]], color: '#f1c40f' }, // Sunflower (S-shape)
+        ];
+
+        // --- High Score Functions ---
+
+        /**
+         * Loads the high score from localStorage.
+         * @returns {number} The stored high score, or 0 if none is found.
+         */
+        function loadHighScore() {
+            const storedHighScore = localStorage.getItem('blockBlastHighScore');
+            return parseInt(storedHighScore || '0');
+        }
+
+        /**
+         * Saves the current high score to localStorage.
+         * @param {number} newScore - The score to save as the high score.
+         */
+        function saveHighScore(newScore) {
+            localStorage.setItem('blockBlastHighScore', newScore);
+        }
+
+        /**
+         * Updates the high score display elements.
+         */
+        function updateHighScoreDisplays() {
+            highScoreDisplayStart.textContent = highScore;
+            highScoreDisplayGame.textContent = highScore;
+        }
+
+        // --- Drawing Functions ---
+
+        /**
+         * Draws a single block on a given canvas context.
+         * @param {CanvasRenderingContext2D} context - The canvas context to draw on.
+         * @param {number} x - X coordinate of the block's top-left corner (pixel).
+         * @param {number} y - Y coordinate of the block's top-left corner (pixel).
+         * @param {string} color - Color of the block.
+         * @param {number} blockSize - The size of the block in pixels.
+         */
+        function drawSingleBlock(context, x, y, color, blockSize) {
+            context.fillStyle = color;
+            context.fillRect(x, y, blockSize, blockSize);
+            context.strokeStyle = '#2c3e50'; // Darker border for blocks
+            context.lineWidth = 1;
+            context.strokeRect(x, y, blockSize, blockSize);
+        }
+
+        /**
+         * Draws the game board, including empty cells and placed blocks.
+         */
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear entire canvas
+            ctx.fillStyle = '#ecf0f1'; // Board background
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#bdc3c7'; // Light grey for grid lines
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= BOARD_COLS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * BLOCK_SIZE + BOARD_PADDING, BOARD_PADDING);
+                ctx.lineTo(i * BLOCK_SIZE + BOARD_PADDING, BOARD_ROWS * BLOCK_SIZE + BOARD_PADDING);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= BOARD_ROWS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(BOARD_PADDING, i * BLOCK_SIZE + BOARD_PADDING);
+                ctx.lineTo(BOARD_COLS * BLOCK_SIZE + BOARD_PADDING, i * BLOCK_SIZE + BOARD_PADDING);
+                ctx.stroke();
+            }
+
+            // Draw placed blocks
+            for (let r = 0; r < BOARD_ROWS; r++) {
+                for (let c = 0; c < BOARD_COLS; c++) {
+                    if (board[r][c] !== 0) {
+                        drawSingleBlock(ctx, c * BLOCK_SIZE + BOARD_PADDING, r * BLOCK_SIZE + BOARD_PADDING, board[r][c], BLOCK_SIZE);
+                    }
+                }
+            }
+        }
+
+        /**
+         * Draws a piece at a given pixel position on a specified context.
+         * @param {CanvasRenderingContext2D} context - The canvas context to draw on.
+         * @param {object} piece - The piece object (shape, color).
+         * @param {number} startX - X pixel coordinate for the top-left of the piece's bounding box.
+         * @param {number} startY - Y pixel coordinate for the top-left of the piece's bounding box.
+         * @param {number} blockSize - The size of each block in the piece.
+         */
+        function drawPiece(context, piece, startX, startY, blockSize) {
+            for (let r = 0; r < piece.shape.length; r++) {
+                for (let c = 0; c < piece.shape[r].length; c++) {
+                    if (piece.shape[r][c] === 1) {
+                        drawSingleBlock(context, startX + c * blockSize, startY + r * blockSize, piece.color, blockSize);
+                    }
+                }
+            }
+        }
+
+        /**
+         * Draws the available pieces in their respective slots below the board.
+         * Each piece is drawn on its own mini-canvas within a slot.
+         */
+        function drawAvailablePieces() {
+            piecesContainer.innerHTML = ''; // Clear previous pieces
+
+            currentPieces.forEach((piece, index) => {
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'piece-slot';
+                slotDiv.dataset.index = index; // Store index for drag identification
+
+                const pieceCanvas = document.createElement('canvas');
+                // Calculate max dimensions for the piece to fit in the slot
+                const pieceWidth = piece.shape[0].length * BLOCK_SIZE;
+                const pieceHeight = piece.shape.length * BLOCK_SIZE;
+
+                // Adjust canvas size to fit the piece, add a small buffer
+                pieceCanvas.width = pieceWidth + 10;
+                pieceCanvas.height = pieceHeight + 10;
+
+                const pieceCtx = pieceCanvas.getContext('2d');
+                // Draw piece centered in its mini-canvas
+                const drawX = (pieceCanvas.width - pieceWidth) / 2;
+                const drawY = (pieceCanvas.height - pieceHeight) / 2;
+                drawPiece(pieceCtx, piece, drawX, drawY, BLOCK_SIZE);
+
+                slotDiv.appendChild(pieceCanvas);
+                piecesContainer.appendChild(slotDiv);
+            });
+
+            // Add empty slots if less than 3 pieces
+            for (let i = currentPieces.length; i < 3; i++) {
+                const slotDiv = document.createElement('div');
+                slotDiv.className = 'piece-slot empty';
+                piecesContainer.appendChild(slotDiv);
+            }
+        }
+
+        /**
+         * Draws the specific Z-Tetris piece on the start screen canvas.
+         */
+        function drawStartScreenZPiece() {
+            const zPiece = PIECES.find(p => JSON.stringify(p.shape) === JSON.stringify([[1, 1, 0], [0, 1, 1]]));
+            if (!zPiece) return; // Fallback if Z-piece not found (shouldn't happen)
+
+            // Determine optimal BLOCK_SIZE for the start screen piece
+            const pieceBlockSize = 25; // Smaller block size for the intro piece
+            const pieceWidth = zPiece.shape[0].length * pieceBlockSize;
+            const pieceHeight = zPiece.shape.length * pieceBlockSize;
+
+            zPieceCanvas.width = pieceWidth + 20; // Add padding around the piece
+            zPieceCanvas.height = pieceHeight + 20;
+
+            // Center the piece within its canvas
+            const startX = (zPieceCanvas.width - pieceWidth) / 2;
+            const startY = (zPieceCanvas.height - pieceHeight) / 2;
+
+            drawPiece(zPieceCtx, zPiece, startX, startY, pieceBlockSize);
+        }
+
+
+        // --- Game Logic Functions ---
+
+        /**
+         * Initializes the game board with empty cells.
+         */
+        function initializeBoard() {
+            board = Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(0));
+        }
+
+        /**
+         * Generates a random piece from the PIECES array.
+         * @returns {object} A random piece object.
+         */
+        function generateRandomPiece() {
+            const randomIndex = Math.floor(Math.random() * PIECES.length);
+            return JSON.parse(JSON.stringify(PIECES[randomIndex])); // Deep copy to avoid modifying original
+        }
+
+        /**
+         * Fills the currentPieces array with 3 new random pieces.
+         */
+        function generateNewPieces() {
+            currentPieces = [];
+            for (let i = 0; i < 3; i++) {
+                currentPieces.push(generateRandomPiece());
+            }
+            drawAvailablePieces();
+        }
+
+        /**
+         * Checks if a piece can be placed at a given board position.
+         * @param {object} piece - The piece object.
+         * @param {number} startRow - The starting row on the board.
+         * @param {number} startCol - The starting column on the board.
+         * @returns {boolean} True if the piece can be placed, false otherwise.
+         */
+        function canPlacePiece(piece, startRow, startCol) {
+            for (let r = 0; r < piece.shape.length; r++) {
+                for (let c = 0; c < piece.shape[r].length; c++) {
+                    if (piece.shape[r][c] === 1) {
+                        const boardRow = startRow + r;
+                        const boardCol = startCol + c;
+
+                        // Check boundaries
+                        if (boardRow < 0 || boardRow >= BOARD_ROWS || boardCol < 0 || boardCol >= BOARD_COLS) {
+                            return false;
+                        }
+                        // Check for overlap with existing blocks
+                        if (board[boardRow][boardCol] !== 0) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Places a piece on the board and updates the board array.
+         * @param {object} piece - The piece object.
+         * @param {number} startRow - The starting row on the board.
+         * @param {number} startCol - The starting column on the board.
+         */
+        function placePiece(piece, startRow, startCol) {
+            for (let r = 0; r < piece.shape.length; r++) {
+                for (let c = 0; c < piece.shape[r].length; c++) {
+                    if (piece.shape[r][c] === 1) {
+                        board[startRow + r][startCol + c] = piece.color;
+                    }
+                }
+            }
+            // Remove the placed piece from the current pieces array
+            currentPieces.splice(draggedPieceIndex, 1);
+            draggedPiece = null;
+            draggedPieceIndex = -1;
+        }
+
+        /**
+         * Checks for and clears full horizontal and vertical lines.
+         * Updates the score based on cleared lines.
+         */
+        function clearLines() {
+            let linesCleared = 0;
+
+            // Check horizontal lines
+            for (let r = 0; r < BOARD_ROWS; r++) {
+                if (board[r].every(block => block !== 0)) {
+                    // Line is full, clear it
+                    board[r].fill(0);
+                    linesCleared++;
+                }
+            }
+
+            // Check vertical lines
+            for (let c = 0; c < BOARD_COLS; c++) {
+                let isColumnFull = true;
+                for (let r = 0; r < BOARD_ROWS; r++) {
+                    if (board[r][c] === 0) {
+                        isColumnFull = false;
+                        break;
+                    }
+                }
+                if (isColumnFull) {
+                    // Column is full, clear it
+                    for (let r = 0; r < BOARD_ROWS; r++) {
+                        board[r][c] = 0;
+                    }
+                    linesCleared++;
+                }
+            }
+
+            // Update score
+            if (linesCleared > 0) {
+                score += linesCleared * 100; // 100 points per line
+                if (linesCleared > 1) {
+                    score += (linesCleared - 1) * 50; // Bonus for clearing multiple lines
+                }
+                scoreDisplay.textContent = score;
+            }
+        }
+
+        /**
+         * Checks if there are any valid moves left for the current pieces.
+         * Sets gameOver to true if no moves are possible.
+         */
+        function checkGameOver() {
+            let possibleMoveExists = false;
+            for (const piece of currentPieces) {
+                for (let r = 0; r < BOARD_ROWS; r++) {
+                    for (let c = 0; c < BOARD_COLS; c++) {
+                        if (canPlacePiece(piece, r, c)) {
+                            possibleMoveExists = true;
+                            break;
+                        }
+                    }
+                    if (possibleMoveExists) break;
+                }
+                if (possibleMoveExists) break;
+            }
+
+            if (!possibleMoveExists && currentPieces.length > 0) {
+                gameOver = true;
+                gameOverMessage.style.display = 'block';
+                playButton.style.display = 'block';
+                if (score > highScore) {
+                    highScore = score;
+                    saveHighScore(highScore);
+                    updateHighScoreDisplays();
+                }
+            } else if (currentPieces.length === 0) {
+                // If all pieces are placed, generate new ones and then check for game over
+                generateNewPieces();
+                // Re-check game over after generating new pieces
+                let newPossibleMoveExists = false;
+                for (const piece of currentPieces) {
+                    for (let r = 0; r < BOARD_ROWS; r++) {
+                        for (let c = 0; c < BOARD_COLS; c++) {
+                            if (canPlacePiece(piece, r, c)) {
+                                newPossibleMoveExists = true;
+                                break;
+                            }
+                        }
+                        if (newPossibleMoveExists) break;
+                    }
+                    if (newPossibleMoveExists) break;
+                }
+                if (!newPossibleMoveExists) {
+                    gameOver = true;
+                    gameOverMessage.style.display = 'block';
+                    playButton.style.display = 'block';
+                    if (score > highScore) {
+                        highScore = score;
+                        saveHighScore(highScore);
+                        updateHighScoreDisplays();
+                    }
+                }
+            }
+        }
+
+
+        /**
+         * Starts a new game or resets the current one.
+         */
+        function startGame() {
+            hideStartScreen(); // Hide the start screen
+            initializeBoard();
+            score = 0;
+            scoreDisplay.textContent = score;
+            gameOver = false;
+            gameOverMessage.style.display = 'none';
+            playButton.style.display = 'none';
+            generateNewPieces(); // Generate initial pieces
+            drawBoard();
+            drawAvailablePieces(); // Draw pieces in their slots
+            updateHighScoreDisplays(); // Ensure game screen high score is updated
+        }
+
+        /**
+         * Shows the start screen and hides the game screen.
+         */
+        function showStartScreen() {
+            startScreen.style.display = 'flex';
+            gameScreen.style.display = 'none';
+            highScore = loadHighScore(); // Load high score when showing start screen
+            updateHighScoreDisplays();
+            drawStartScreenZPiece(); // Draw the Z-piece when showing the start screen
+        }
+
+        /**
+         * Hides the start screen and shows the game screen.
+         */
+        function hideStartScreen() {
+            startScreen.style.display = 'none';
+            gameScreen.style.display = 'flex';
+        }
+
+        // --- Event Handlers (Mouse and Touch) ---
+
+        /**
+         * Gets the coordinates of a mouse or touch event relative to the canvas.
+         * @param {Event} event - The mouse or touch event.
+         * @returns {object} An object with x and y coordinates.
+         */
+        function getEventCoords(event) {
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY;
+
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else {
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
+
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        /**
+         * Handles the start of a drag operation (mousedown or touchstart) on the piece slots.
+         * @param {Event} event - The mouse or touch event.
+         */
+        function onPieceSlotStart(event) {
+            if (gameOver) return;
+
+            event.preventDefault(); // Prevent default touch actions like scrolling
+
+            let targetSlot = event.target;
+            // Traverse up to find the .piece-slot div
+            while (targetSlot && !targetSlot.classList.contains('piece-slot')) {
+                targetSlot = targetSlot.parentNode;
+            }
+
+            if (targetSlot && targetSlot.dataset.index !== undefined) {
+                const pieceMiniCanvas = targetSlot.querySelector('canvas');
+                if (!pieceMiniCanvas) return; // Should not happen if slots are correctly generated
+
+                draggedPieceIndex = parseInt(targetSlot.dataset.index);
+                draggedPiece = currentPieces[draggedPieceIndex];
+
+                if (draggedPiece) {
+                    const rect = pieceMiniCanvas.getBoundingClientRect(); // Get rect of the mini-canvas
+                    let clientX, clientY;
+
+                    if (event.touches && event.touches.length > 0) {
+                        clientX = event.touches[0].clientX;
+                        clientY = event.touches[0].clientY;
+                    } else {
+                        clientX = event.clientX;
+                        clientY = event.clientY;
+                    }
+
+                    // Coordinates of the click/touch relative to the mini-canvas
+                    const clickXInPieceCanvas = clientX - rect.left;
+                    const clickYInPieceCanvas = clientY - rect.top;
+
+                    // Calculate the piece's actual dimensions
+                    const pieceWidthPx = draggedPiece.shape[0].length * BLOCK_SIZE;
+                    const pieceHeightPx = draggedPiece.shape.length * BLOCK_SIZE;
+
+                    // Calculate the offset of the piece's top-left corner within its mini-canvas
+                    // This is how the piece is centered when drawn in drawAvailablePieces
+                    const pieceDrawOffsetX = (pieceMiniCanvas.width - pieceWidthPx) / 2;
+                    const pieceDrawOffsetY = (pieceMiniCanvas.height - pieceHeightPx) / 2;
+
+                    // dragOffsetX and dragOffsetY now store the offset from the piece's (0,0)
+                    // to the exact point where the user clicked *within the piece's visual representation*.
+                    dragOffsetX = clickXInPieceCanvas - pieceDrawOffsetX;
+                    dragOffsetY = clickYInPieceCanvas - pieceDrawOffsetY;
+
+                    // The piece is now "picked up". We need to redraw the main board
+                    // and then start drawing the piece at the current mouse/touch position
+                    // on the main canvas, adjusted by the calculated offset.
+                    const mainCanvasCoords = getEventCoords(event); // Get current coords relative to main canvas
+                    drawBoard(); // Clear and redraw board
+                    drawPiece(ctx, draggedPiece, mainCanvasCoords.x - dragOffsetX, mainCanvasCoords.y - dragOffsetY, BLOCK_SIZE);
+                }
+            }
+        }
+
+        /**
+         * Handles the drag movement (mousemove or touchmove) on the canvas.
+         * @param {Event} event - The mouse or touch event.
+         */
+        function onDragMove(event) {
+            if (gameOver || !draggedPiece) return;
+
+            event.preventDefault(); // Prevent scrolling/zooming during drag
+
+            const coords = getEventCoords(event);
+
+            // Redraw everything to show the dragged piece
+            drawBoard();
+            // Draw the dragged piece at the current mouse/touch position,
+            // adjusted by the initial offset to make it drag from where it was clicked.
+            drawPiece(ctx, draggedPiece, coords.x - dragOffsetX, coords.y - dragOffsetY, BLOCK_SIZE);
+        }
+
+        /**
+         * Handles the end of a drag operation (mouseup or touchend) on the canvas.
+         * Attempts to place the dragged piece.
+         * @param {Event} event - The mouse or touch event.
+         */
+        function onDragEnd(event) {
+            if (gameOver || !draggedPiece) return;
+
+            event.preventDefault(); // Prevent default touch actions
+
+            const coords = getEventCoords(event);
+
+            // Calculate the top-left corner of the piece based on where the drag ended,
+            // then convert to board coordinates.
+            const pieceTopLeftX = coords.x - dragOffsetX;
+            const pieceTopLeftY = coords.y - dragOffsetY;
+
+            // Convert pixel coordinates to board row/column
+            // Adjust for board padding
+            const targetCol = Math.round((pieceTopLeftX - BOARD_PADDING) / BLOCK_SIZE);
+            const targetRow = Math.round((pieceTopLeftY - BOARD_PADDING) / BLOCK_SIZE);
+
+            if (canPlacePiece(draggedPiece, targetRow, targetCol)) {
+                placePiece(draggedPiece, targetRow, targetCol);
+                clearLines();
+                drawBoard();
+                drawAvailablePieces(); // Update available pieces display
+                checkGameOver(); // Check for game over after placing and clearing
+            } else {
+                // If placement is invalid, return the piece to the available pieces area
+                // No need to do anything as it's still in `currentPieces` if not placed.
+                // Just reset draggedPiece and redraw.
+                drawBoard(); // Redraw board without the dragged piece
+                drawAvailablePieces(); // Redraw available pieces (piece will still be there)
+            }
+
+            draggedPiece = null;
+            draggedPieceIndex = -1;
+            dragOffsetX = 0;
+            dragOffsetY = 0;
+        }
+
+        // --- Event Listeners ---
+
+        // Listen for drag start on the pieces container (delegation)
+        piecesContainer.addEventListener('mousedown', onPieceSlotStart);
+        piecesContainer.addEventListener('touchstart', onPieceSlotStart, { passive: false }); // passive: false to allow preventDefault
+
+        // Listen for drag move and end on the canvas
+        canvas.addEventListener('mousemove', onDragMove);
+        canvas.addEventListener('mouseup', onDragEnd);
+        canvas.addEventListener('touchmove', onDragMove, { passive: false });
+        canvas.addEventListener('touchend', onDragEnd, { passive: false });
+
+        // Start button and Play Again button listeners
+        startButton.addEventListener('click', startGame);
+        playButton.addEventListener('click', startGame);
+
+        // Initial setup when the page loads
+        window.onload = showStartScreen;
+
+    </script>
+</body>
+</html>
