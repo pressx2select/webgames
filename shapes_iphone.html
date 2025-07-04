@@ -398,7 +398,7 @@
         <!-- Start Screen -->
         <div id="start-screen">
             <p style="font-size: 1.5rem; margin-bottom: 2rem;">
-                v0.1.8
+                v0.2.2
             </p>
 
             <!-- Mode Toggle Button -->
@@ -415,8 +415,7 @@
                 <span class="rotated-arrow">&lt;</span>
                 <svg class="rule-icon-in-button" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /></svg>
                 <span class="rotated-arrow">&lt;</span>
-                <svg class="rule-icon-in-button" viewBox="0 0 24 24"><path d="M12 22L3 2h18z" /></svg>
-                <svg class="mode-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> <!-- Play icon -->
+                <svg class="rule-icon-in-button" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> <!-- Play icon -->
             </button>
         </div>
 
@@ -475,6 +474,7 @@
                 </div>
             </div>
             <div class="buttons-container">
+                <!-- Corrected Player 2's square button SVG -->
                 <button id="p2-square" class="fire-button" data-shape="square">
                     <svg class="button-icon" viewBox="0 0 24 24">
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -612,6 +612,8 @@
         let snareDrum;
         let bassDrum;
         let timerEndSynth; // New synth for timer end sound
+        let backgroundSynth; // New synth for background music
+        let backgroundArpeggio; // New Tone.Loop for the arpeggio
 
         /**
          * Initializes Tone.js instruments.
@@ -696,6 +698,32 @@
                 }
             }).toDestination();
             timerEndSynth.volume.value = -10; // Make it noticeable
+
+            // Background Music Synth: A soft, sustained synth for the arpeggio
+            backgroundSynth = new Tone.Synth({
+                oscillator: { type: "sine" }, // Sine wave for a smooth, ethereal sound
+                envelope: {
+                    attack: 0.5,   // Gentle attack
+                    decay: 0.1,    // Quick decay
+                    sustain: 0.9,  // Long sustain
+                    release: 1.0   // Long release
+                }
+            }).toDestination();
+            backgroundSynth.volume.value = -10; // Increased volume for better audibility
+
+            // Background Arpeggio: Plays a continuous arpeggio
+            // Notes for a C major 7th chord (C, E, G, B)
+             const arpeggioNotes = ["C4", "E4", "G4", "B4", "C5", "B4", "G4", "E4", "C4", "E4", "G4", "B4", "C5", "D5", "B4", "G4"];            let noteIndex = 0;
+
+            backgroundArpeggio = new Tone.Loop(time => {
+                // Play the current note of the arpeggio
+                backgroundSynth.triggerAttackRelease(arpeggioNotes[noteIndex], "8n", time);
+                // Move to the next note, looping back to the start if at the end
+                noteIndex = (noteIndex + 1) % arpeggioNotes.length;
+            }, "4n"); // Play a note every quarter note (adjust "4n" for faster/slower arpeggio)
+
+            // Ensure the arpeggio is initially stopped
+            backgroundArpeggio.stop();
         }
 
 
@@ -729,14 +757,8 @@
             // Position Player 2's score display just below its player area (Player 2 is now at the top)
             player2.scoreDisplay.style.top = `${p2AreaHeight + 5}px`; // 5px buffer below player area
 
-            // Initialize timer bar positions and full height to span the canvas
-            timerBarLeft.style.height = `${canvas.height}px`;
-            timerBarRight.style.height = `${canvas.height}px`;
-            timerBarLeft.style.top = `${0}px`; // Start at the top of the canvas
-            timerBarRight.style.top = `${0}px`; // Start at the top of the canvas
-            // Reset their colors to green
-            timerBarLeft.classList.remove('orange', 'red');
-            timerBarRight.classList.remove('orange', 'red');
+            // Update timer bar positions and full height to span the canvas, and then center them
+            updateTimerBars(); // Call this here to ensure bars are positioned correctly on resize
 
 
             // Redraw everything after resize
@@ -1072,16 +1094,21 @@
         function updateTimerBars() {
             const remainingTimeRatio = gameTimer / GAME_CONFIG.GAME_DURATION; // 1.0 down to 0.0
 
-            // Calculate the current height of the bars relative to canvas height
+            // The height of the bar should be relative to the canvas height
             const currentBarHeight = canvas.height * remainingTimeRatio;
 
-            // Calculate the new top position to keep them vertically centered
-            const topOffset = (canvas.height - currentBarHeight) / 2;
+            // Calculate the top offset to center the bar *within the canvas*
+            // The canvas's top position relative to its parent (.game-container)
+            const canvasTop = canvas.offsetTop;
+            const topOffsetWithinCanvas = (canvas.height - currentBarHeight) / 2;
+
+            // The absolute top position within the .game-container
+            const absoluteTop = canvasTop + topOffsetWithinCanvas;
 
             timerBarLeft.style.height = `${currentBarHeight}px`;
             timerBarRight.style.height = `${currentBarHeight}px`;
-            timerBarLeft.style.top = `${topOffset}px`;
-            timerBarRight.style.top = `${topOffset}px`;
+            timerBarLeft.style.top = `${absoluteTop}px`; // Apply the calculated absolute top
+            timerBarRight.style.top = `${absoluteTop}px`;
 
             // Update colors based on time remaining
             if (gameTimer <= 15) {
@@ -1126,8 +1153,11 @@
                 flashOverlay.remove();
             });
 
-            // Trigger audio cue
-            timerEndSynth.triggerAttackRelease("C3", "0.5"); // A low C note for 0.5 seconds
+            // Trigger audio cue with a small, guaranteed-to-be-increasing offset
+            // This addresses the "Start time must be strictly greater than previous start time" error.
+            // By adding a very small, unique offset to Tone.context.currentTime, we ensure each trigger
+            // is scheduled at a distinct, future point in time, satisfying Tone.js's internal clock.
+            timerEndSynth.triggerAttackRelease("C3", "0.5", Tone.context.currentTime + 0.001); // Changed to Tone.context.currentTime
         }
 
 
@@ -1346,6 +1376,11 @@
             if (powerUpSynth) {
                 powerUpSynth.releaseAll();
             }
+            // Stop background music
+            if (backgroundArpeggio) {
+                backgroundArpeggio.stop();
+                Tone.Transport.stop(); // Stop the transport when the game ends
+            }
 
             // Reset classes
             player1.endIndicator.classList.remove('winner', 'loser');
@@ -1385,6 +1420,12 @@
             updateMeters(player1); // Update button states
             updateMeters(player2);
 
+            // Stop background music if it's playing
+            if (backgroundArpeggio) {
+                backgroundArpeggio.stop();
+                Tone.Transport.stop(); // Stop the transport when returning to start screen
+            }
+
             // Reset game mode to default and update toggle button
             gameMode = 'twoPlayer';
             updateModeToggleButton();
@@ -1392,7 +1433,8 @@
             // Reset timer bar visuals to full green
             timerBarLeft.classList.remove('orange', 'red');
             timerBarRight.classList.remove('orange', 'red');
-            if (canvas.height > 0) { // Only set if canvas has a height (after resize)
+            // Ensure canvas dimensions are set before updating timer bars
+            if (canvas.height > 0) {
                 timerBarLeft.style.height = `${canvas.height}px`;
                 timerBarRight.style.height = `${canvas.height}px`;
                 timerBarLeft.style.top = `0px`;
@@ -1575,6 +1617,12 @@
             updateTimerBars(); // Update timer bars to full green
             lastUpdateTime = performance.now(); // Reset timer for smooth start
             requestAnimationFrame(gameLoop); // Start the game loop again
+
+            // Start background music and Tone.Transport
+            if (backgroundArpeggio) {
+                backgroundArpeggio.start();
+                Tone.Transport.start(); // Start the Tone.js Transport for the loop to play
+            }
         }
 
         /**
