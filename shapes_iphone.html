@@ -157,16 +157,18 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.8); /* Black background for countdown */
+            /* Updated styling for the countdown message box */
+            background-color: rgba(42, 67, 101, 0.8); /* Semi-transparent darker blue */
+            border: 2px solid rgba(255, 255, 255, 0.2); /* Subtle white border */
             padding: 1.5rem 2.5rem;
             border-radius: 1rem;
             color: #fff;
-            font-size: 2rem;
+            font-size: 2.5rem; /* Slightly larger font for countdown numbers */
             font-weight: bold;
             text-align: center;
             z-index: 100;
             display: none; /* Hidden by default */
-            box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7); /* More defined shadow */
             animation: fadeIn 0.5s ease-out;
         }
 
@@ -698,8 +700,12 @@
                     path = '<circle cx="12" cy="12" r="9" />';
                     break;
                 case 'triangle':
-                    // Countdown triangle points down for consistency with P1's attack direction
-                    path = '<path d="M12 22L3 2h18z" />';
+                    /*
+                    The SVG for countdown shapes should probably always point in one consistent direction,
+                    e.g., downwards, regardless of which player's turn it is or which player is being "counted down".
+                    This makes the countdown visual consistent and not tied to player orientation.
+                    */
+                    path = '<path d="M12 22L3 2h18z" />'; // Always pointing down
                     break;
             }
             return `<svg class="countdown-icon" style="fill:${color};" viewBox="0 0 24 24">${path}</svg>`;
