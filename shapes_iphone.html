@@ -6,6 +6,8 @@
     <title>shapes</title>
     <!-- Tailwind CSS CDN for basic styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js CDN for sound generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <style>
         /* Universal box-sizing for consistent layout */
         * {
@@ -54,12 +56,14 @@
             transition: background-color 0.1s ease-out; /* Smooth transition for hit flash */
         }
 
+        /* Player One is now at the bottom */
         .player-area.player-one {
-            order: 1; /* Player One at the top */
+            order: 3;
         }
 
+        /* Player Two is now at the top */
         .player-area.player-two {
-            order: 3; /* Player Two at the bottom */
+            order: 1;
         }
 
         .player-area.hit-flash {
@@ -93,9 +97,6 @@
             transition: transform 0.1s linear, background-color 0.2s ease; /* Transition for scaleX and color */
             transform-origin: center; /* Shrink towards the center */
         }
-
-        /* Health meter colors will be set by JS dynamically */
-        /* Removed .fireball-meter .meter-fill here, moved logic to JS */
 
         .buttons-container {
             display: flex;
@@ -149,7 +150,6 @@
             width: 100%;
             touch-action: none; /* Prevent default touch actions like scrolling/zooming */
             order: 2; /* Canvas in the middle */
-            /* Removed height: auto; to let flex-grow control height and prevent stretching */
         }
 
         .game-message {
@@ -157,7 +157,6 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            /* Updated styling for the countdown message box */
             background-color: rgba(42, 67, 101, 0.8); /* Semi-transparent darker blue */
             border: 2px solid rgba(255, 255, 255, 0.2); /* Subtle white border */
             padding: 1.5rem 2.5rem;
@@ -211,14 +210,6 @@
             padding: 1rem;
         }
 
-        #start-screen h1 {
-            font-size: 3.5rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            color: #f59e0b; /* Orange title */
-            text-shadow: 0 0 10px rgba(255, 165, 0, 0.5);
-        }
-
         #start-screen p {
             font-size: 1.5rem;
             margin-bottom: 2rem;
@@ -227,34 +218,62 @@
             gap: 0.5rem;
         }
 
-        #start-screen .rule-icon {
-            width: 1.2em;
-            height: 1.2em;
-            fill: #fff;
-            vertical-align: middle;
-        }
-
-        #start-game-button {
-            padding: 1rem 2rem;
-            background: linear-gradient(145deg, #48bb78, #38a169); /* Green gradient */
-            color: white;
-            font-size: 1.8rem;
+        /* Unified button styling for start screen */
+        .start-screen-button {
+            padding: 1rem 2rem; /* Consistent padding */
+            font-size: 1.8rem; /* Consistent font size */
             font-weight: bold;
             border: none;
             border-radius: 0.75rem;
             cursor: pointer;
             box-shadow: 0 6px 10px rgba(0, 0, 0, 0.4), inset 0 3px 5px rgba(255, 255, 255, 0.3);
             transition: transform 0.1s ease, background 0.2s ease;
-            display: flex; /* Make button content flex for icon alignment */
+            display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem; /* Space between icons */
+            gap: 0.5rem;
         }
 
-        #start-game-button:active {
+        .start-screen-button:active {
             transform: translateY(3px);
             box-shadow: 0 3px 5px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+        }
+
+        /* Specific colors for buttons */
+        #mode-toggle-button {
+            background: linear-gradient(145deg, #4299e1, #3182ce); /* Blue gradient for player option */
+            margin-bottom: 1rem; /* Space between mode toggle and play button */
+        }
+        #mode-toggle-button:active {
+            background: linear-gradient(145deg, #3182ce, #4299e1);
+        }
+
+        #play-game-button {
+            background: linear-gradient(145deg, #48bb78, #38a169); /* Green gradient for play button */
+            flex-direction: column; /* Stack icons vertically */
+        }
+        #play-game-button:active {
             background: linear-gradient(145deg, #38a169, #48bb78);
+        }
+
+
+        .mode-icon {
+            width: 2em; /* Size for mode toggle icons */
+            height: 2em;
+            fill: currentColor;
+        }
+
+        .rule-icon-in-button {
+            width: 1.8em; /* Slightly smaller than mode/play icon, but larger than old rule-icon */
+            height: 1.8em;
+            fill: currentColor;
+        }
+
+        /* New style for the rotated arrow */
+        .rotated-arrow {
+            display: inline-block; /* Allows transform to work */
+            transform: rotate(90deg); /* Rotate 90 degrees clockwise */
+            margin: 0 0.2em; /* Adjust spacing as needed */
         }
 
         /* Styling for countdown shapes */
@@ -330,6 +349,12 @@
             height: 1.2em;
             fill: currentColor; /* Inherit color from parent */
         }
+
+        /* New: Dim player 2's area in AI mode */
+        .player-area.player-two.ai-mode {
+            opacity: 0.5; /* Dim the top player's area */
+            pointer-events: none; /* Disable interaction with buttons */
+        }
     </style>
 </head>
 <body>
@@ -339,23 +364,33 @@
             <p style="font-size: 1.5rem; margin-bottom: 2rem;">
                 v0.7
             </p>
-            <button id="start-game-button">
-                <!-- Moved rule icons into the button -->
-                <svg class="rule-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /></svg>
-                &lt;
-                <svg class="rule-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /></svg>
-                &lt;
-                <svg class="rule-icon" viewBox="0 0 24 24"><path d="M12 22L3 2h18z" /></svg> <!-- Flipped triangle for start screen -->
+
+            <!-- Mode Toggle Button -->
+            <button id="mode-toggle-button" class="start-screen-button">
+                <!-- Initial icon for 2 players -->
+                <svg id="mode-icon" class="mode-icon" viewBox="0 0 24 24">
+                    <path d="M16.5 12c1.38 0 2.5-1.12 2.5-2.5S17.88 7 16.5 7 14 8.12 14 9.5s1.12 2.5 2.5 2.5zM9 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm7.5 3c-1.83 0-5.5.92-5.5 2.75V19h11v-2.25c0-1.83-3.67-2.75-5.5-2.75zM9 13c-2.33 0-7 1.17-7 3.5V19h7v-2.5c0-.83.67-1.5 1.5-1.5h.5c.23 0 .45.06.66.17.65-.53 1.4-.92 2.2-.17.65.53 1.4.92 2.2.17.21-.11.43-.17.66-.17h.5c.83 0 1.5.67 1.5 1.5V19h7v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                </svg>
+            </button>
+
+            <!-- Play Game Button -->
+            <button id="play-game-button" class="start-screen-button">
+                <svg class="rule-icon-in-button" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /></svg>
+                <span class="rotated-arrow">&lt;</span>
+                <svg class="rule-icon-in-button" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /></svg>
+                <span class="rotated-arrow">&lt;</span>
+                <svg class="rule-icon-in-button" viewBox="0 0 24 24"><path d="M12 22L3 2h18z" /></svg>
+                <svg class="mode-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> <!-- Play icon -->
             </button>
         </div>
 
-        <!-- Player One Area (Top) -->
+        <!-- Player One Area (Bottom) -->
         <div class="player-area player-one">
             <div class="buttons-container">
                 <!-- Swapped order for Player One buttons -->
                 <button id="p1-triangle" class="fire-button" data-shape="triangle">
                     <svg class="button-icon" viewBox="0 0 24 24">
-                        <path d="M12 22L3 2h18z" /> <!-- Flipped triangle for Player One -->
+                        <path d="M12 2L3 22h18z" /> <!-- Upward triangle for Player One (bottom) -->
                     </svg>
                 </button>
                 <button id="p1-circle" class="fire-button" data-shape="circle">
@@ -388,7 +423,7 @@
         <!-- Player Two Score Display (moved outside player area) -->
         <div id="p2-score-display" class="score-display player-two-score"></div>
 
-        <!-- Player Two Area (Bottom) -->
+        <!-- Player Two Area (Top) -->
         <div class="player-area player-two">
             <div class="meters-container">
                 <!-- Swapped order for Player Two meters -->
@@ -412,7 +447,7 @@
                 </button>
                 <button id="p2-triangle" class="fire-button" data-shape="triangle">
                     <svg class="button-icon" viewBox="0 0 24 24">
-                        <path d="M12 2L3 22h18z" />
+                        <path d="M12 22L3 2h18z" /> <!-- Downward triangle for Player Two (top) -->
                     </svg>
                 </button>
             </div>
@@ -425,8 +460,10 @@
 
         <!-- New End Screen Overlay with Indicators -->
         <div id="end-screen-overlay">
-            <div id="p1-end-indicator" class="end-game-indicator"></div>
+            <!-- Player 2's indicator (top) -->
             <div id="p2-end-indicator" class="end-game-indicator"></div>
+            <!-- Player 1's indicator (bottom) -->
+            <div id="p1-end-indicator" class="end-game-indicator"></div>
         </div>
     </div>
 
@@ -492,6 +529,7 @@
         let gameActive = false; // Game starts inactive, waiting for start screen
         let countdownInterval = null;
         let powerUpAnimationId = null; // To store the requestAnimationFrame ID for power-up animation
+        let gameMode = 'twoPlayer'; // Default to 'twoPlayer'
 
         // Game message elements (now primarily for countdown)
         const gameMessage = document.getElementById('game-message');
@@ -499,13 +537,95 @@
 
         // Start screen elements
         const startScreen = document.getElementById('start-screen');
-        const startGameButton = document.getElementById('start-game-button');
+        const modeToggleButton = document.getElementById('mode-toggle-button');
+        const modeIcon = document.getElementById('mode-icon');
+        const playGameButton = document.getElementById('play-game-button');
 
         // End screen overlay
         const endScreenOverlay = document.getElementById('end-screen-overlay');
 
         // Global array to hold particles for explosion effects
         let particles = [];
+
+        // Tone.js Instruments
+        let powerUpSynth;
+        let launchSynth;
+        let snareDrum;
+        let bassDrum;
+
+        /**
+         * Initializes Tone.js instruments.
+         * This function sets up all the synthesizers and their basic properties.
+         * All sounds are designed to be in the key of C major for a harmonious feel.
+         */
+        function initializeAudio() {
+            // Power-up sound: A sustained C major chord.
+            // This synth uses a sine wave for a smooth, pure tone.
+            // The envelope defines how the sound starts (attack), fades (decay), sustains, and releases.
+            powerUpSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "sine" }, // Sine wave for a clean, swelling sound
+                envelope: {
+                    attack: 10,  // Long attack to gradually build volume
+                    decay: 1.0,   // Moderate decay
+                    sustain: 1.0, // Sustains fully during the countdown
+                    release: 1.0  // Gradual release when countdown ends
+                }
+            }).toDestination(); // Connects the synth to the main audio output
+            powerUpSynth.volume.value = -40; // Start very quiet (-40 dB) to allow for a smooth fade-in
+
+            // Fireball Launch sound: A plucked string sound.
+            // This is a simple, quick sound for each fireball launch.
+            // Using PolySynth to allow multiple notes (C, E, G) for different shapes.
+            launchSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "triangle" }, // A triangle wave for a softer, plucky sound
+                envelope: {
+                    attack: 0.01,
+                    decay: 0.1,
+                    sustain: 0.0,
+                    release: 0.2
+                }
+            }).toDestination();
+            launchSynth.volume.value = -18; // Very subtle volume (-18 dB) to avoid being too intrusive
+
+            // Bass Drum (Fireball Collision): Emulates a bass drum sound.
+            // MembraneSynth is ideal for kick drum sounds due to its resonant properties.
+            bassDrum = new Tone.MembraneSynth({
+                pitchDecay: 0.05, // How fast the pitch drops (key for drum sound)
+                octaves: 8,       // Range of pitch decay
+                oscillator: { type: "sine" }, // Sine wave for a clean bass tone
+                envelope: {
+                    attack: 0.001, // Very fast attack for a punchy hit
+                    decay: 0.4,   // Longer decay for the "boom"
+                    sustain: 0.0, // No sustain
+                    release: 0.8  // Gradual release
+                }
+            }).toDestination();
+            bassDrum.volume.value = -2; // Louder volume for a more impactful bass drum
+
+            // Snare Drum (Player Hit): Emulates a snare drum sound.
+            // A NoiseSynth is used for the "snare" part, combined with a short envelope.
+            snareDrum = new Tone.NoiseSynth({
+                noise: {
+                    type: "white" // White noise for a harsh, snare-like quality
+                },
+                envelope: {
+                    attack: 0.005, // Very fast attack for a sharp hit
+                    decay: 0.1,   // Quick decay
+                    sustain: 0.0, // No sustain
+                    release: 0.1  // Fast release
+                },
+                filterEnvelope: { // An optional filter envelope to shape the noise further
+                    attack: 0.001,
+                    decay: 0.05,
+                    sustain: 0.0,
+                    release: 0.05,
+                    baseFrequency: 4000,
+                    octaves: -2
+                }
+            }).toDestination();
+            snareDrum.volume.value = -5; // Moderate volume for the snare
+        }
+
 
         /**
          * Resizes the canvas and game container to fill the window.
@@ -532,10 +652,10 @@
             const p1AreaHeight = player1Area.offsetHeight;
             const p2AreaHeight = player2Area.offsetHeight;
 
-            // Position Player 1's score display just below its player area
-            player1.scoreDisplay.style.top = `${p1AreaHeight + 5}px`; // 5px buffer below player area
-            // Position Player 2's score display just above its player area
-            player2.scoreDisplay.style.bottom = `${p2AreaHeight + 5}px`; // 5px buffer above player area
+            // Position Player 1's score display just below its player area (Player 1 is now at the bottom)
+            player1.scoreDisplay.style.bottom = `${p1AreaHeight + 5}px`; // 5px buffer above player area
+            // Position Player 2's score display just below its player area (Player 2 is now at the top)
+            player2.scoreDisplay.style.top = `${p2AreaHeight + 5}px`; // 5px buffer below player area
 
             // Redraw everything after resize
             drawGame();
@@ -602,18 +722,18 @@
                         break;
                     case 'triangle':
                         /*
-                        The triangle for Player 1's fireballs (moving down) needs to point down.
-                        The triangle for Player 2's fireballs (moving up) needs to point up.
+                        The triangle for Player 1's fireballs (moving up, as P1 is now at bottom) needs to point up.
+                        The triangle for Player 2's fireballs (moving down, as P2 is now at top) needs to point down.
                         The `direction` property of the fireball determines this.
                         */
-                        if (this.direction === 1) { // Player 1's fireball (moving downwards)
-                            ctx.moveTo(this.x, this.y + this.radius); // Bottom point
-                            ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-left
-                            ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-right
-                        } else { // Player 2's fireball (moving upwards)
+                        if (this.direction === -1) { // Player 1's fireball (moving upwards)
                             ctx.moveTo(this.x, this.y - this.radius); // Top point
                             ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-right
                             ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-left
+                        } else { // Player 2's fireball (moving downwards)
+                            ctx.moveTo(this.x, this.y + this.radius); // Bottom point
+                            ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-left
+                            ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-right
                         }
                         ctx.closePath();
                         break;
@@ -725,20 +845,34 @@
             player.canFire = false; // Prevent rapid firing immediately
             player.lastFiredShape = shape;
 
-            // Determine initial position and direction
-            // Fireballs launch from the horizontal center of the canvas
+            // Trigger launch sound based on shape
+            let noteToPlay;
+            switch (shape) {
+                case 'square':
+                    noteToPlay = "C4"; // C note for Square
+                    break;
+                case 'circle':
+                    noteToPlay = "E4"; // E note for Circle
+                    break;
+                case 'triangle':
+                    noteToPlay = "G4"; // G note for Triangle
+                    break;
+                default:
+                    noteToPlay = "C4"; // Default to C4 if shape is unknown
+            }
+            launchSynth.triggerAttackRelease(noteToPlay, "8n"); // Play the specific note for 8th note duration
+
+            // Determine initial position and direction based on player's new position
             let startX = canvas.width / 2;
             let startY;
             let direction;
 
-            if (player === player1) {
-                // Player 1 (top) launches from the top edge of the canvas, moving downwards
-                startY = GAME_CONFIG.FIREBALL_RADIUS;
-                direction = 1; // Move downwards
-            } else {
-                // Player 2 (bottom) launches from the bottom edge of the canvas, moving upwards
+            if (player === player1) { // Player 1 is now at the bottom, fires upwards
                 startY = canvas.height - GAME_CONFIG.FIREBALL_RADIUS;
                 direction = -1; // Move upwards
+            } else { // Player 2 is now at the top, fires downwards
+                startY = GAME_CONFIG.FIREBALL_RADIUS;
+                direction = 1; // Move downwards
             }
 
             player.fireballs.push(new Fireball(startX, startY, shape, direction));
@@ -833,6 +967,19 @@
             player1.fireballEnergy = Math.min(GAME_CONFIG.MAX_FIREBALL_ENERGY, player1.fireballEnergy + GAME_CONFIG.ENERGY_REGEN_RATE * deltaTime);
             player2.fireballEnergy = Math.min(GAME_CONFIG.MAX_FIREBALL_ENERGY, player2.fireballEnergy + GAME_CONFIG.ENERGY_REGEN_RATE * deltaTime);
 
+            // AI logic for player2 (single-player mode)
+            if (gameMode === 'singlePlayer' && gameActive) {
+                // Simple AI: Fire a random shape periodically
+                // This AI fires if it has enough energy and its internal cooldown allows.
+                // The `canFire` flag on the player object acts as a simple cooldown.
+                if (player2.canFire && player2.fireballEnergy >= GAME_CONFIG.FIREBALL_COST) {
+                    const shapes = ['square', 'circle', 'triangle'];
+                    const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+                    fireFireball(player2, randomShape);
+                }
+            }
+
+
             // Update fireballs positions
             player1.fireballs.forEach(fb => fb.update(deltaTime));
             player2.fireballs.forEach(fb => fb.update(deltaTime));
@@ -859,6 +1006,8 @@
                     if (distance < p1Fb.radius + p2Fb.radius) {
                         // Collision detected! Create explosion at collision point
                         createExplosion((p1Fb.x + p2Fb.x) / 2, (p1Fb.y + p2Fb.y) / 2, 'white', 10);
+                        // Trigger bass drum sound for fireball collision
+                        bassDrum.triggerAttackRelease("C2", "8n");
 
                         const result = resolveCollision(p1Fb, p2Fb);
 
@@ -876,38 +1025,42 @@
             }
 
             // Player hit detection (after fireball-on-fireball collisions are resolved)
-            // Player 1's fireballs (moving down) hitting Player 2
-            const player2HitZoneY = canvas.height - GAME_CONFIG.PLAYER_HIT_ZONE_OFFSET;
+            // Player 1's fireballs (moving up) hitting Player 2 (at top)
+            const player2HitZoneY = GAME_CONFIG.PLAYER_HIT_ZONE_OFFSET; // Player 2 is at the top
             for (let i = player1.fireballs.length - 1; i >= 0; i--) {
                 const p1Fb = player1.fireballs[i];
                 if (p1Fb.isHit) continue; // Skip if already marked for removal
 
-                if (p1Fb.y + p1Fb.radius >= player2HitZoneY) {
+                if (p1Fb.y - p1Fb.radius <= player2HitZoneY) { // Check if P1's fireball hits P2's zone
                     player2.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
                     p1Fb.isHit = true; // Mark for removal
                     player1.lastHitShape = p1Fb.shape; // Record the shape that hit
                     // Flash player2's area red
                     player2Area.classList.add('hit-flash');
                     createExplosion(p1Fb.x, player2HitZoneY, 'white', 15); // Explosion on player hit
+                    // Trigger snare drum sound for player hit
+                    snareDrum.triggerAttackRelease();
                     setTimeout(() => {
                         player2Area.classList.remove('hit-flash');
                     }, 600); // Flash for 100ms
                 }
             }
 
-            // Player 2's fireballs (moving up) hitting Player 1
-            const player1HitZoneY = GAME_CONFIG.PLAYER_HIT_ZONE_OFFSET;
+            // Player 2's fireballs (moving down) hitting Player 1 (at bottom)
+            const player1HitZoneY = canvas.height - GAME_CONFIG.PLAYER_HIT_ZONE_OFFSET; // Player 1 is at the bottom
             for (let i = player2.fireballs.length - 1; i >= 0; i--) {
                 const p2Fb = player2.fireballs[i];
                 if (p2Fb.isHit) continue; // Skip if already marked for removal
 
-                if (p2Fb.y - p2Fb.radius <= player1HitZoneY) {
+                if (p2Fb.y + p2Fb.radius >= player1HitZoneY) { // Check if P2's fireball hits P1's zone
                     player1.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
                     p2Fb.isHit = true; // Mark for removal
                     player2.lastHitShape = p2Fb.shape; // Record the shape that hit
                     // Flash player1's area red
                     player1Area.classList.add('hit-flash');
                     createExplosion(p2Fb.x, player1HitZoneY, 'white', 15); // Explosion on player hit
+                    // Trigger snare drum sound for player hit
+                    snareDrum.triggerAttackRelease();
                     setTimeout(() => {
                         player1Area.classList.remove('hit-flash');
                     }, 600); // Flash for 100ms
@@ -915,8 +1068,10 @@
             }
 
             // Remove fireballs that are out of bounds or have hit something
-            player1.fireballs = player1.fireballs.filter(fb => !fb.isHit && fb.y < canvas.height + fb.radius);
-            player2.fireballs = player2.fireballs.filter(fb => !fb.isHit && fb.y > -fb.radius);
+            // Player 1's fireballs (moving up) should be removed if they go past top
+            player1.fireballs = player1.fireballs.filter(fb => !fb.isHit && fb.y > -fb.radius);
+            // Player 2's fireballs (moving down) should be removed if they go past bottom
+            player2.fireballs = player2.fireballs.filter(fb => !fb.isHit && fb.y < canvas.height + fb.radius);
 
             // Update UI meters
             updateMeters(player1);
@@ -952,10 +1107,10 @@
         function checkGameOver() {
             if (player1.health <= 0) {
                 player1.health = 0; // Cap health at 0
-                endGame("player2"); // Pass winner ID
+                endGame("player2"); // Player 2 wins if Player 1's health is 0
             } else if (player2.health <= 0) {
                 player2.health = 0; // Cap health at 0
-                endGame("player1"); // Pass winner ID
+                endGame("player1"); // Player 1 wins if Player 2's health is 0
             }
         }
 
@@ -968,20 +1123,25 @@
             gameMessage.style.display = 'none'; // Hide countdown message box
             endScreenOverlay.style.display = 'flex'; // Show the end screen overlay
 
+            // Stop power-up sound if it's still playing
+            if (powerUpSynth) {
+                powerUpSynth.releaseAll();
+            }
+
             // Reset classes
             player1.endIndicator.classList.remove('winner', 'loser');
             player2.endIndicator.classList.remove('winner', 'loser');
 
             // Apply winner/loser classes and update score
             if (winnerId === 'player1') {
-                player1.endIndicator.classList.add('winner');
-                player2.endIndicator.classList.add('loser');
+                player1.endIndicator.classList.add('winner'); // Player 1 (bottom) wins, so bottom indicator is green
+                player2.endIndicator.classList.add('loser');   // Player 2 (top) loses, so top indicator is red
                 if (player1.lastHitShape) { // Only add if a hit occurred
                     player1.score.push(player1.lastHitShape);
                 }
             } else { // winnerId === 'player2'
-                player1.endIndicator.classList.add('loser');
-                player2.endIndicator.classList.add('winner');
+                player1.endIndicator.classList.add('loser');   // Player 1 (bottom) loses, so bottom indicator is red
+                player2.endIndicator.classList.add('winner');  // Player 2 (top) wins, so top indicator is green
                 if (player2.lastHitShape) { // Only add if a hit occurred
                     player2.score.push(player2.lastHitShape);
                 }
@@ -1005,6 +1165,10 @@
             player2.fireballEnergy = 0;
             updateMeters(player1); // Update button states
             updateMeters(player2);
+
+            // Reset game mode to default and update toggle button
+            gameMode = 'twoPlayer';
+            updateModeToggleButton();
         }
 
         /**
@@ -1023,6 +1187,18 @@
             player2.health = GAME_CONFIG.MAX_HEALTH * progress;
             player2.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY * progress;
 
+            // Gradually increase powerUpSynth volume from -40dB to -12dB
+            if (powerUpSynth) {
+                // Use exponential ramping for a more natural sound increase
+                const startVolume = -40; // dB
+                const endVolume = -12; // dB
+                // Tone.js provides a convenient `linearRampToValueAtTime` or `rampTo` for smoother volume changes.
+                // For a simple linear increase based on progress, direct assignment is fine.
+                const currentVolume = startVolume + (endVolume - startVolume) * progress;
+                powerUpSynth.volume.value = currentVolume;
+            }
+
+
             updateMeters(player1);
             updateMeters(player2);
 
@@ -1037,6 +1213,11 @@
                 updateMeters(player1);
                 updateMeters(player2);
 
+                // Stop power-up sound
+                if (powerUpSynth) {
+                    powerUpSynth.releaseAll();
+                }
+
                 // Now that meters are full, start the actual game
                 resetGame();
             }
@@ -1044,8 +1225,17 @@
 
         /**
          * Starts the game countdown.
+         * @param {string} mode - The selected game mode ('singlePlayer' or 'twoPlayer').
          */
-        function startGameCountdown() {
+        async function startGameCountdown(mode) {
+            gameMode = mode; // Set the global game mode
+
+            // Start AudioContext on user gesture
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+                console.log('AudioContext started');
+            }
+
             startScreen.style.display = 'none';
             gameMessage.style.display = 'block'; // Show countdown message box
             endScreenOverlay.style.display = 'none'; // Hide end screen during countdown
@@ -1061,6 +1251,14 @@
             // Disable buttons during countdown and power-up
             player1.canFire = false;
             player2.canFire = false;
+
+            // Apply AI mode class if single player
+            if (gameMode === 'singlePlayer') {
+                player2Area.classList.add('ai-mode'); // Dim player 2's area and disable interaction
+            } else {
+                player2Area.classList.remove('ai-mode'); // Ensure player 2's area is normal
+            }
+
 
             const countdownMessages = [
                  getCountdownShapeSVG('triangle', 'red'),
@@ -1082,6 +1280,12 @@
                 }
             }, 1000); // 1 second per message
 
+            // Start power-up sound
+            if (powerUpSynth) {
+                // Play C major chord for power-up animation
+                powerUpSynth.triggerAttack(["C4", "E4", "G4"]);
+            }
+
             // Start power-up animation concurrently with countdown
             animatePowerUpMeters(performance.now(), countdownDuration);
         }
@@ -1094,6 +1298,10 @@
             if (powerUpAnimationId) {
                 cancelAnimationFrame(powerUpAnimationId);
                 powerUpAnimationId = null;
+            }
+            // Ensure power-up sound is stopped
+            if (powerUpSynth) {
+                powerUpSynth.releaseAll();
             }
 
             player1.health = GAME_CONFIG.MAX_HEALTH; // Ensure full health at game start
@@ -1148,14 +1356,11 @@
                         path = '<circle cx="12" cy="12" r="9" />';
                         break;
                     case 'triangle':
-                        // Use the correct orientation for the score icon based on the player's side
-                        // For score display, let's keep them consistent, maybe always pointing up or down.
-                        // Or, if we want them to reflect the player's "side", we can use the original logic.
-                        // Let's use the original logic for visual connection to the player.
-                        if (player === player1) { // Player 1's winning hit was with a downward triangle
-                            path = '<path d="M12 22L3 2h18z" />';
-                        } else { // Player 2's winning hit was with an upward triangle
+                        // Player 1 (bottom) should have upward triangles, Player 2 (top) downward
+                        if (player === player1) { // Player 1's winning hit was with an upward triangle
                             path = '<path d="M12 2L3 22h18z" />';
+                        } else { // Player 2's winning hit was with a downward triangle
+                            path = '<path d="M12 22L3 2h18z" />';
                         }
                         break;
                 }
@@ -1163,6 +1368,34 @@
                 player.scoreDisplay.appendChild(svg);
             });
         }
+
+        /**
+         * Toggles the game mode between 'singlePlayer' and 'twoPlayer'
+         * and updates the mode toggle button's icon and player 2's visibility.
+         */
+        function toggleGameMode() {
+            if (gameMode === 'twoPlayer') {
+                gameMode = 'singlePlayer';
+            } else {
+                gameMode = 'twoPlayer';
+            }
+            updateModeToggleButton();
+        }
+
+        /**
+         * Updates the mode toggle button's icon and player 2's area styling
+         * based on the current `gameMode`.
+         */
+        function updateModeToggleButton() {
+            if (gameMode === 'twoPlayer') {
+                modeIcon.innerHTML = `<path d="M16.5 12c1.38 0 2.5-1.12 2.5-2.5S17.88 7 16.5 7 14 8.12 14 9.5s1.12 2.5 2.5 2.5zM9 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm7.5 3c-1.83 0-5.5.92-5.5 2.75V19h11v-2.25c0-1.83-3.67-2.75-5.5-2.75zM9 13c-2.33 0-7 1.17-7 3.5V19h7v-2.5c0-.83.67-1.5 1.5-1.5h.5c.23 0 .45.06.66.17.65-.53 1.4-.92 2.2-.17.65.53 1.4.92 2.2.17.21-.11.43-.17.66-.17h.5c.83 0 1.5.67 1.5 1.5V19h7v-2.5c0-2.33-4.67-3.5-7-3.5z"/>`;
+                player2Area.classList.remove('ai-mode'); // Ensure player 2's area is normal
+            } else { // singlePlayer
+                modeIcon.innerHTML = `<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>`;
+                player2Area.classList.add('ai-mode'); // Dim player 2's area and disable interaction
+            }
+        }
+
 
         // Get player area elements for hit flash
         const player1Area = document.querySelector('.player-area.player-one');
@@ -1196,16 +1429,26 @@
         player2.endIndicator.addEventListener('touchstart', function(e) { e.preventDefault(); this.click(); }, { passive: false });
 
 
-        // Start Game button listener
-        startGameButton.addEventListener('click', startGameCountdown);
-        startGameButton.addEventListener('touchstart', function(e) {
+        // Mode Toggle Button Listener
+        modeToggleButton.addEventListener('click', toggleGameMode);
+        modeToggleButton.addEventListener('touchstart', async function(e) {
             e.preventDefault();
-            this.click();
+            if (Tone.context.state !== 'running') { await Tone.start(); }
+            toggleGameMode();
+        }, { passive: false });
+
+        // Play Game Button Listener
+        playGameButton.addEventListener('click', () => startGameCountdown(gameMode));
+        playGameButton.addEventListener('touchstart', async function(e) {
+            e.preventDefault();
+            if (Tone.context.state !== 'running') { await Tone.start(); }
+            startGameCountdown(gameMode);
         }, { passive: false });
 
 
         // Initial setup
         window.addEventListener('load', () => {
+            initializeAudio(); // Initialize audio instruments on load
             resizeCanvas(); // Set initial canvas size
             showStartScreen(); // Show the start screen first
         });
