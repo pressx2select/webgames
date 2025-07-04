@@ -31,7 +31,7 @@
             display: flex;
             flex-direction: column;
             width: 100%;
-            // max-width: 600px; /* Max width for larger screens */
+            max-width: 600px; /* Max width for larger screens */
             /* Height will be set by JavaScript for mobile optimization */
             margin: auto;
             background-color: #2d3748; /* Slightly lighter dark background */
@@ -95,9 +95,7 @@
         }
 
         /* Health meter colors will be set by JS dynamically */
-        .fireball-meter .meter-fill {
-            background-color: #f59e0b; /* Orange for fireball energy */
-        }
+        /* Removed .fireball-meter .meter-fill here, moved logic to JS */
 
         .buttons-container {
             display: flex;
@@ -307,15 +305,37 @@
         .player-area.player-one .buttons-container {
             margin-bottom: 1.5rem; /* Increased spacing between buttons and meters for P1 */
         }
+
+        /* Score Display */
+        .score-display {
+            position: absolute; /* Position relative to game-container */
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-wrap: wrap; /* Allow icons to wrap to the next line */
+            gap: 0.25rem; /* Small gap between icons */
+            justify-content: center; /* Center icons horizontally */
+            margin-top: 0.5rem; /* Space above the score icons */
+            min-height: 1.5em; /* Ensure space even if no icons */
+            color: #cbd5e0; /* Light gray for score icons */
+            z-index: 50; /* Above canvas, below other overlays */
+            width: 100%; /* Take full width to center content */
+            padding: 0 1rem; /* Add some horizontal padding */
+        }
+
+        .score-icon {
+            width: 1.2em; /* Tiny icon size */
+            height: 1.2em;
+            fill: currentColor; /* Inherit color from parent */
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
         <!-- Start Screen -->
         <div id="start-screen">
-            <!-- Removed <h1>Shapes</h1> -->
             <p style="font-size: 1.5rem; margin-bottom: 2rem;">
-                v0.1
+                v0.5
             </p>
             <button id="start-game-button">
                 <!-- Moved rule icons into the button -->
@@ -324,13 +344,11 @@
                 <svg class="rule-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /></svg>
                 &lt;
                 <svg class="rule-icon" viewBox="0 0 24 24"><path d="M12 22L3 2h18z" /></svg> <!-- Flipped triangle for start screen -->
-                <!-- Removed "Start Game" text -->
             </button>
         </div>
 
         <!-- Player One Area (Top) -->
         <div class="player-area player-one">
-            <!-- Removed <h2>Player One</h2> -->
             <div class="buttons-container">
                 <!-- Swapped order for Player One buttons -->
                 <button id="p1-triangle" class="fire-button" data-shape="triangle">
@@ -351,28 +369,32 @@
             </div>
             <div class="meters-container">
                 <div class="meter health-meter">
-                    <div id="p1-health-fill" class="meter-fill" style="transform: scaleX(1);"></div>
+                    <div id="p1-health-fill" class="meter-fill" style="transform: scaleX(0);"></div>
                 </div>
                 <div class="meter fireball-meter">
-                    <div id="p1-fireball-fill" class="meter-fill" style="transform: scaleX(1);"></div>
+                    <div id="p1-fireball-fill" class="meter-fill" style="transform: scaleX(0);"></div>
                 </div>
             </div>
-            <!-- Removed outcome indicator from here -->
         </div>
+
+        <!-- Player One Score Display (moved outside player area) -->
+        <div id="p1-score-display" class="score-display player-one-score"></div>
 
         <!-- Game Canvas -->
         <canvas id="gameCanvas"></canvas>
 
+        <!-- Player Two Score Display (moved outside player area) -->
+        <div id="p2-score-display" class="score-display player-two-score"></div>
+
         <!-- Player Two Area (Bottom) -->
         <div class="player-area player-two">
-            <!-- Removed <h2>Player Two</h2> -->
             <div class="meters-container">
                 <!-- Swapped order for Player Two meters -->
                 <div class="meter fireball-meter">
-                    <div id="p2-fireball-fill" class="meter-fill" style="transform: scaleX(1);"></div>
+                    <div id="p2-fireball-fill" class="meter-fill" style="transform: scaleX(0);"></div>
                 </div>
                 <div class="meter health-meter">
-                    <div id="p2-health-fill" class="meter-fill" style="transform: scaleX(1);"></div>
+                    <div id="p2-health-fill" class="meter-fill" style="transform: scaleX(0);"></div>
                 </div>
             </div>
             <div class="buttons-container">
@@ -392,13 +414,11 @@
                     </svg>
                 </button>
             </div>
-            <!-- Removed outcome indicator from here -->
         </div>
 
         <!-- Game Over / Countdown Message (now only for countdown) -->
         <div id="game-message" class="game-message">
             <p id="message-text"></p>
-            <!-- Restart button is now handled by end-game indicators -->
         </div>
 
         <!-- New End Screen Overlay with Indicators -->
@@ -428,11 +448,11 @@
 
         // Player states
         let player1 = {
-            health: GAME_CONFIG.MAX_HEALTH,
-            fireballEnergy: GAME_CONFIG.MAX_FIREBALL_ENERGY,
+            health: 0, // Start at 0 for power-up animation
+            fireballEnergy: 0, // Start at 0 for power-up animation
             fireballs: [],
             lastFiredShape: null,
-            canFire: true,
+            canFire: false, // Cannot fire during power-up
             buttons: {
                 square: document.getElementById('p1-square'),
                 circle: document.getElementById('p1-circle'),
@@ -440,15 +460,18 @@
             },
             healthFill: document.getElementById('p1-health-fill'),
             fireballFill: document.getElementById('p1-fireball-fill'),
-            endIndicator: document.getElementById('p1-end-indicator') // New: End game indicator
+            endIndicator: document.getElementById('p1-end-indicator'),
+            lastHitShape: null, // New property to store the shape that successfully hit the opponent
+            score: [], // Array to store winning hit shapes
+            scoreDisplay: document.getElementById('p1-score-display') // New DOM element reference
         };
 
         let player2 = {
-            health: GAME_CONFIG.MAX_HEALTH,
-            fireballEnergy: GAME_CONFIG.MAX_FIREBALL_ENERGY,
+            health: 0, // Start at 0 for power-up animation
+            fireballEnergy: 0, // Start at 0 for power-up animation
             fireballs: [],
             lastFiredShape: null,
-            canFire: true,
+            canFire: false, // Cannot fire during power-up
             buttons: {
                 square: document.getElementById('p2-square'),
                 circle: document.getElementById('p2-circle'),
@@ -456,13 +479,17 @@
             },
             healthFill: document.getElementById('p2-health-fill'),
             fireballFill: document.getElementById('p2-fireball-fill'),
-            endIndicator: document.getElementById('p2-end-indicator') // New: End game indicator
+            endIndicator: document.getElementById('p2-end-indicator'),
+            lastHitShape: null, // New property
+            score: [], // Array to store winning hit shapes
+            scoreDisplay: document.getElementById('p2-score-display') // New DOM element reference
         };
 
         // Game state variables
         let lastUpdateTime = 0;
         let gameActive = false; // Game starts inactive, waiting for start screen
         let countdownInterval = null;
+        let powerUpAnimationId = null; // To store the requestAnimationFrame ID for power-up animation
 
         // Game message elements (now primarily for countdown)
         const gameMessage = document.getElementById('game-message');
@@ -493,6 +520,20 @@
             // after the browser has laid it out, to prevent stretching.
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
+
+            // Get player area elements for dynamic positioning
+            const player1Area = document.querySelector('.player-area.player-one');
+            const player2Area = document.querySelector('.player-area.player-two');
+
+            // Calculate and set top/bottom for score displays
+            // Get the actual height of the player areas after layout
+            const p1AreaHeight = player1Area.offsetHeight;
+            const p2AreaHeight = player2Area.offsetHeight;
+
+            // Position Player 1's score display just below its player area
+            player1.scoreDisplay.style.top = `${p1AreaHeight + 5}px`; // 5px buffer below player area
+            // Position Player 2's score display just above its player area
+            player2.scoreDisplay.style.bottom = `${p2AreaHeight + 5}px`; // 5px buffer above player area
 
             // Redraw everything after resize
             drawGame();
@@ -558,12 +599,16 @@
                         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                         break;
                     case 'triangle':
-                        // Player 1's triangle points down, Player 2's points up
-                        if (this.direction === 1) { // Player 1's fireball (moving down)
+                        /*
+                        The triangle for Player 1's fireballs (moving down) needs to point down.
+                        The triangle for Player 2's fireballs (moving up) needs to point up.
+                        The `direction` property of the fireball determines this.
+                        */
+                        if (this.direction === 1) { // Player 1's fireball (moving downwards)
                             ctx.moveTo(this.x, this.y + this.radius); // Bottom point
                             ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-left
                             ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-right
-                        } else { // Player 2's fireball (moving up)
+                        } else { // Player 2's fireball (moving upwards)
                             ctx.moveTo(this.x, this.y - this.radius); // Top point
                             ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-right
                             ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-left
@@ -720,6 +765,18 @@
             }
             player.healthFill.style.backgroundColor = healthColor;
 
+            // Determine fireball energy bar color
+            let fireballColor;
+            if (player.fireballEnergy > GAME_CONFIG.MAX_FIREBALL_ENERGY * 0.75) {
+                fireballColor = '#48bb78'; // Green
+            } else if (player.fireballEnergy > GAME_CONFIG.MAX_FIREBALL_ENERGY * 0.33) {
+                fireballColor = '#f6e05e'; // Yellow
+            } else {
+                fireballColor = '#ef4444'; // Red
+            }
+            player.fireballFill.style.backgroundColor = fireballColor;
+
+
             // Apply scale transform to meter fills
             player.healthFill.style.transform = `scaleX(${healthScale})`;
             player.fireballFill.style.transform = `scaleX(${fireballScale})`;
@@ -822,6 +879,7 @@
                 if (p1Fb.y + p1Fb.radius >= player2HitZoneY) {
                     player2.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
                     p1Fb.isHit = true; // Mark for removal
+                    player1.lastHitShape = p1Fb.shape; // Record the shape that hit
                     // Flash player2's area red
                     player2Area.classList.add('hit-flash');
                     createExplosion(p1Fb.x, player2HitZoneY, 'white', 15); // Explosion on player hit
@@ -840,6 +898,7 @@
                 if (p2Fb.y - p2Fb.radius <= player1HitZoneY) {
                     player1.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
                     p2Fb.isHit = true; // Mark for removal
+                    player2.lastHitShape = p2Fb.shape; // Record the shape that hit
                     // Flash player1's area red
                     player1Area.classList.add('hit-flash');
                     createExplosion(p2Fb.x, player1HitZoneY, 'white', 15); // Explosion on player hit
@@ -907,14 +966,22 @@
             player1.endIndicator.classList.remove('winner', 'loser');
             player2.endIndicator.classList.remove('winner', 'loser');
 
-            // Apply winner/loser classes
+            // Apply winner/loser classes and update score
             if (winnerId === 'player1') {
                 player1.endIndicator.classList.add('winner');
                 player2.endIndicator.classList.add('loser');
+                if (player1.lastHitShape) { // Only add if a hit occurred
+                    player1.score.push(player1.lastHitShape);
+                }
             } else { // winnerId === 'player2'
                 player1.endIndicator.classList.add('loser');
                 player2.endIndicator.classList.add('winner');
+                if (player2.lastHitShape) { // Only add if a hit occurred
+                    player2.score.push(player2.lastHitShape);
+                }
             }
+            updateScoreDisplay(player1);
+            updateScoreDisplay(player2);
         }
 
         /**
@@ -925,8 +992,48 @@
             gameMessage.style.display = 'none'; // Ensure game message is hidden
             endScreenOverlay.style.display = 'none'; // Ensure end screen is hidden
             gameActive = false; // Game is not active during start screen
+            // Set meters to 0 when showing start screen
+            player1.health = 0;
+            player1.fireballEnergy = 0;
+            player2.health = 0;
+            player2.fireballEnergy = 0;
             updateMeters(player1); // Update button states
             updateMeters(player2);
+        }
+
+        /**
+         * Animates the health and fireball meters filling up.
+         * @param {number} startTime - The timestamp when the animation started.
+         * @param {number} duration - The total duration of the animation in milliseconds.
+         */
+        function animatePowerUpMeters(startTime, duration) {
+            const currentTime = performance.now();
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(1, elapsed / duration); // Progress from 0 to 1
+
+            // Calculate current health and energy based on progress
+            player1.health = GAME_CONFIG.MAX_HEALTH * progress;
+            player1.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY * progress;
+            player2.health = GAME_CONFIG.MAX_HEALTH * progress;
+            player2.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY * progress;
+
+            updateMeters(player1);
+            updateMeters(player2);
+
+            if (progress < 1) {
+                powerUpAnimationId = requestAnimationFrame((timestamp) => animatePowerUpMeters(startTime, duration));
+            } else {
+                // Ensure meters are exactly max at the end
+                player1.health = GAME_CONFIG.MAX_HEALTH;
+                player1.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY;
+                player2.health = GAME_CONFIG.MAX_HEALTH;
+                player2.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY;
+                updateMeters(player1);
+                updateMeters(player2);
+
+                // Now that meters are full, start the actual game
+                resetGame();
+            }
         }
 
         /**
@@ -937,6 +1044,17 @@
             gameMessage.style.display = 'block'; // Show countdown message box
             endScreenOverlay.style.display = 'none'; // Hide end screen during countdown
 
+            // Reset meters to 0 before starting power-up animation
+            player1.health = 0;
+            player1.fireballEnergy = 0;
+            player2.health = 0;
+            player2.fireballEnergy = 0;
+            updateMeters(player1);
+            updateMeters(player2);
+
+            // Disable buttons during countdown and power-up
+            player1.canFire = false;
+            player2.canFire = false;
 
             const countdownMessages = [
                  getCountdownShapeSVG('triangle', 'red'),
@@ -944,6 +1062,7 @@
                 getCountdownShapeSVG('circle', 'green'),
             ];
             let count = 0;
+            const countdownDuration = countdownMessages.length * 1000; // Total countdown time in ms
 
             messageText.innerHTML = countdownMessages[count]; // Use innerHTML for SVG
             countdownInterval = setInterval(() => {
@@ -953,32 +1072,46 @@
                 } else {
                     clearInterval(countdownInterval);
                     gameMessage.style.display = 'none'; // Hide countdown message box after finished
-                    resetGame(); // Reset and start the game
+                    // The game will be reset/started by animatePowerUpMeters completion
                 }
             }, 1000); // 1 second per message
+
+            // Start power-up animation concurrently with countdown
+            animatePowerUpMeters(performance.now(), countdownDuration);
         }
 
         /**
-         * Resets the game to its initial state.
+         * Resets the game to its initial state (but not score).
          */
         function resetGame() {
-            player1.health = GAME_CONFIG.MAX_HEALTH;
-            player1.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY;
+            // Cancel any ongoing power-up animation
+            if (powerUpAnimationId) {
+                cancelAnimationFrame(powerUpAnimationId);
+                powerUpAnimationId = null;
+            }
+
+            player1.health = GAME_CONFIG.MAX_HEALTH; // Ensure full health at game start
+            player1.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY; // Ensure full energy at game start
             player1.fireballs = [];
             player1.lastFiredShape = null;
-            player1.canFire = true;
+            player1.canFire = true; // Enable firing
+            player1.lastHitShape = null; // Reset last hit shape
 
-            player2.health = GAME_CONFIG.MAX_HEALTH;
-            player2.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY;
+            player2.health = GAME_CONFIG.MAX_HEALTH; // Ensure full health at game start
+            player2.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY; // Ensure full energy at game start
             player2.fireballs = [];
             player2.lastFiredShape = null;
-            player2.canFire = true;
+            player2.canFire = true; // Enable firing
+            player2.lastHitShape = null; // Reset last hit shape
 
             // Clear all particles
             particles = [];
 
             updateMeters(player1);
             updateMeters(player2);
+            // DO NOT clear score display here, as score persists
+            // updateScoreDisplay(player1);
+            // updateScoreDisplay(player2);
 
             gameMessage.style.display = 'none';
             endScreenOverlay.style.display = 'none'; // Hide end screen overlay
@@ -988,6 +1121,41 @@
             gameActive = true; // Game is now active
             lastUpdateTime = performance.now(); // Reset timer for smooth start
             requestAnimationFrame(gameLoop); // Start the game loop again
+        }
+
+        /**
+         * Updates the display of score icons for a given player.
+         * @param {object} player - The player object.
+         */
+        function updateScoreDisplay(player) {
+            player.scoreDisplay.innerHTML = ''; // Clear existing icons
+            player.score.forEach(shape => {
+                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svg.setAttribute("class", "score-icon");
+                svg.setAttribute("viewBox", "0 0 24 24");
+                let path = '';
+                switch (shape) {
+                    case 'square':
+                        path = '<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />';
+                        break;
+                    case 'circle':
+                        path = '<circle cx="12" cy="12" r="9" />';
+                        break;
+                    case 'triangle':
+                        // Use the correct orientation for the score icon based on the player's side
+                        // For score display, let's keep them consistent, maybe always pointing up or down.
+                        // Or, if we want them to reflect the player's "side", we can use the original logic.
+                        // Let's use the original logic for visual connection to the player.
+                        if (player === player1) { // Player 1's winning hit was with a downward triangle
+                            path = '<path d="M12 22L3 2h18z" />';
+                        } else { // Player 2's winning hit was with an upward triangle
+                            path = '<path d="M12 2L3 22h18z" />';
+                        }
+                        break;
+                }
+                svg.innerHTML = path;
+                player.scoreDisplay.appendChild(svg);
+            });
         }
 
         // Get player area elements for hit flash
