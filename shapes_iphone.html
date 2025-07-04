@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fireball Showdown</title>
+    <title>shapes</title>
     <!-- Tailwind CSS CDN for basic styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -31,7 +31,7 @@
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-width: 600px; /* Max width for larger screens */
+            // max-width: 600px; /* Max width for larger screens */
             /* Height will be set by JavaScript for mobile optimization */
             margin: auto;
             background-color: #2d3748; /* Slightly lighter dark background */
@@ -48,7 +48,7 @@
             padding: 1rem;
             background-color: #2a4365; /* Player area background */
             border-radius: 1rem;
-            margin: 0.5rem;
+            /* Removed margin: 0.5rem; to allow it to fill full width */
             box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
             flex-shrink: 0; /* Prevent shrinking */
             transition: background-color 0.1s ease-out; /* Smooth transition for hit flash */
@@ -151,7 +151,7 @@
             width: 100%;
             touch-action: none; /* Prevent default touch actions like scrolling/zooming */
             order: 2; /* Canvas in the middle */
-            height: auto; /* Allow canvas to adjust its height based on flex-grow */
+            /* Removed height: auto; to let flex-grow control height and prevent stretching */
         }
 
         .game-message {
@@ -485,19 +485,14 @@
         function resizeCanvas() {
             const gameContainer = document.querySelector('.game-container');
             // Set game container height based on actual window inner height for mobile compatibility
+            // This accounts for browser UI that changes window.innerHeight
             gameContainer.style.height = `${window.innerHeight}px`;
 
             // Canvas width and height will automatically adjust due to flex-grow: 1
-            canvas.width = gameContainer.clientWidth;
-            // The canvas height will be the remaining space after player areas
-            // No explicit height calculation needed for canvas if flex-grow is used correctly,
-            // but setting it here ensures it's updated if the container's height changes.
-            // A more precise way would be to calculate remaining space, but flexbox handles it.
-            // For simplicity, we can just ensure its width is correct.
-            // The height will be managed by flexbox.
-            // We can re-evaluate if canvas drawing gets distorted.
-            // For now, let's ensure the canvas width is always correct.
-            // The height will be derived from flex-grow.
+            // We need to ensure the canvas's internal drawing size matches its *actual rendered size*
+            // after the browser has laid it out, to prevent stretching.
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
 
             // Redraw everything after resize
             drawGame();
