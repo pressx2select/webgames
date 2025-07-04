@@ -355,6 +355,42 @@
             opacity: 0.5; /* Dim the top player's area */
             pointer-events: none; /* Disable interaction with buttons */
         }
+
+        /* Styles for the new timer bars */
+        .timer-bar {
+            position: absolute;
+            width: 10px; /* Thin bar */
+            background-color: #48bb78; /* Green by default */
+            transition: height 0.5s linear, background-color 0.2s ease, top 0.5s linear; /* Added top transition */
+            z-index: 40; /* Below fireballs, above canvas background */
+        }
+
+        #timer-bar-left {
+            left: 0;
+        }
+
+        #timer-bar-right {
+            right: 0;
+        }
+
+        /* Colors for different stages */
+        .timer-bar.orange {
+            background-color: #f6ad55; /* Orange */
+        }
+
+        .timer-bar.red {
+            background-color: #ef4444; /* Red */
+        }
+
+        /* CSS for the flash overlay */
+        @keyframes flashWhite {
+            0% { opacity: 0; }
+            50% { opacity: var(--flash-opacity); } /* Use CSS variable for opacity */
+            100% { opacity: 0; }
+        }
+        #flash-overlay {
+            /* Initial styles defined in JS, but this ensures the keyframes are linked */
+        }
     </style>
 </head>
 <body>
@@ -362,7 +398,7 @@
         <!-- Start Screen -->
         <div id="start-screen">
             <p style="font-size: 1.5rem; margin-bottom: 2rem;">
-                v0.7
+                v0.1.8
             </p>
 
             <!-- Mode Toggle Button -->
@@ -416,6 +452,10 @@
 
         <!-- Player One Score Display (moved outside player area) -->
         <div id="p1-score-display" class="score-display player-one-score"></div>
+
+        <!-- Timer Bars (positioned within game-container, alongside canvas) -->
+        <div id="timer-bar-left" class="timer-bar"></div>
+        <div id="timer-bar-right" class="timer-bar"></div>
 
         <!-- Game Canvas -->
         <canvas id="gameCanvas"></canvas>
@@ -474,15 +514,24 @@
 
         // Game configuration
         const GAME_CONFIG = {
-            MAX_HEALTH: 100,
+            MAX_HEALTH: 150, // Increased health for more forgiving gameplay
             MAX_FIREBALL_ENERGY: 100,
-            FIREBALL_COST: 30,
+            FIREBALL_COST: 20, // Reduced energy cost per shot
             ENERGY_REGEN_RATE: 10, // Energy per second
             FIREBALL_SPEED: 200, // Pixels per second
             DAMAGE_ON_PLAYER_HIT: 25, // Damage dealt when a fireball hits a player
             FIREBALL_RADIUS: 20,
             GAME_UPDATE_INTERVAL: 1000 / 60, // 60 FPS
-            PLAYER_HIT_ZONE_OFFSET: 10 // Distance from canvas edge for player hit detection
+            PLAYER_HIT_ZONE_OFFSET: 10, // Distance from canvas edge for player hit detection
+            GAME_DURATION: 60, // Total game duration in seconds for the timer bar
+            TIMER_PULSE_DURATION: 0.5, // Duration of the white pulse effect in seconds
+            TIMER_PULSE_OPACITY: 0.4, // Max opacity for the white pulse effect (reduced from 0.8)
+
+            // Fireball cooldowns based on game stage
+            FIRE_COOLDOWN_STAGE_1: 400, // Initial cooldown (ms) - 60s to 30s
+            FIRE_COOLDOWN_STAGE_2: 200, // Cooldown for 30s to 15s stage (ms)
+            FIRE_COOLDOWN_STAGE_3: 100, // Cooldown for 15s to 0s stage (ms)
+            FIRE_COOLDOWN_STAGE_4: 50  // Cooldown for after 0s (timer runs out) stage (ms)
         };
 
         // Player states
@@ -530,6 +579,12 @@
         let countdownInterval = null;
         let powerUpAnimationId = null; // To store the requestAnimationFrame ID for power-up animation
         let gameMode = 'twoPlayer'; // Default to 'twoPlayer'
+        let gameTimer = GAME_CONFIG.GAME_DURATION; // Initialize game timer
+        let timerEndedEffectTriggered = false; // Flag to ensure timer end effect triggers only once
+        let thirtySecondMarkTriggered = false; // Flag for 30-second mark effect
+        let fifteenSecondMarkTriggered = false; // Flag for 15-second mark effect
+        let currentFireCooldown = GAME_CONFIG.FIRE_COOLDOWN_STAGE_1; // Initialize with the longest cooldown
+
 
         // Game message elements (now primarily for countdown)
         const gameMessage = document.getElementById('game-message');
@@ -544,6 +599,10 @@
         // End screen overlay
         const endScreenOverlay = document.getElementById('end-screen-overlay');
 
+        // Timer bar elements
+        const timerBarLeft = document.getElementById('timer-bar-left');
+        const timerBarRight = document.getElementById('timer-bar-right');
+
         // Global array to hold particles for explosion effects
         let particles = [];
 
@@ -552,6 +611,7 @@
         let launchSynth;
         let snareDrum;
         let bassDrum;
+        let timerEndSynth; // New synth for timer end sound
 
         /**
          * Initializes Tone.js instruments.
@@ -624,6 +684,18 @@
                 }
             }).toDestination();
             snareDrum.volume.value = -5; // Moderate volume for the snare
+
+            // Timer End Sound: A distinct, low square wave tone
+            timerEndSynth = new Tone.Synth({
+                oscillator: { type: "square" },
+                envelope: {
+                    attack: 0.01,
+                    decay: 0.2,
+                    sustain: 0.0,
+                    release: 0.3
+                }
+            }).toDestination();
+            timerEndSynth.volume.value = -10; // Make it noticeable
         }
 
 
@@ -656,6 +728,16 @@
             player1.scoreDisplay.style.bottom = `${p1AreaHeight + 5}px`; // 5px buffer above player area
             // Position Player 2's score display just below its player area (Player 2 is now at the top)
             player2.scoreDisplay.style.top = `${p2AreaHeight + 5}px`; // 5px buffer below player area
+
+            // Initialize timer bar positions and full height to span the canvas
+            timerBarLeft.style.height = `${canvas.height}px`;
+            timerBarRight.style.height = `${canvas.height}px`;
+            timerBarLeft.style.top = `${0}px`; // Start at the top of the canvas
+            timerBarRight.style.top = `${0}px`; // Start at the top of the canvas
+            // Reset their colors to green
+            timerBarLeft.classList.remove('orange', 'red');
+            timerBarRight.classList.remove('orange', 'red');
+
 
             // Redraw everything after resize
             drawGame();
@@ -731,9 +813,10 @@
                             ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-right
                             ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y + this.radius * Math.sin(Math.PI / 6)); // Bottom-left
                         } else { // Player 2's fireball (moving downwards)
+                            // Corrected calculation for a symmetrical downward-pointing triangle
                             ctx.moveTo(this.x, this.y + this.radius); // Bottom point
-                            ctx.lineTo(this.x - this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-left
-                            ctx.lineTo(this.x + this.radius * Math.cos(Math.PI / 6), this.y - this.radius * Math.sin(Math.PI / 6)); // Top-right
+                            ctx.lineTo(this.x - this.radius * Math.sqrt(3) / 2, this.y - this.radius / 2); // Top-left point
+                            ctx.lineTo(this.x + this.radius * Math.sqrt(3) / 2, this.y - this.radius / 2); // Top-right point
                         }
                         ctx.closePath();
                         break;
@@ -832,35 +915,25 @@
         }
 
         /**
-         * Handles a player firing a fireball.
+         * Launches a single fireball from a player.
+         * This is a helper function called by `fireFireball` to handle burst firing.
          * @param {object} player - The player object (player1 or player2).
          * @param {string} shape - The shape of the fireball to fire.
+         * @param {number} timeOffset - The time offset for Tone.js scheduling.
          */
-        function fireFireball(player, shape) {
-            if (!gameActive || !player.canFire || player.fireballEnergy < GAME_CONFIG.FIREBALL_COST) {
-                return; // Cannot fire
-            }
-
-            player.fireballEnergy -= GAME_CONFIG.FIREBALL_COST;
-            player.canFire = false; // Prevent rapid firing immediately
+        function launchSingleFireball(player, shape, timeOffset) {
             player.lastFiredShape = shape;
 
-            // Trigger launch sound based on shape
+            // Determine sound note based on shape
             let noteToPlay;
             switch (shape) {
-                case 'square':
-                    noteToPlay = "C4"; // C note for Square
-                    break;
-                case 'circle':
-                    noteToPlay = "E4"; // E note for Circle
-                    break;
-                case 'triangle':
-                    noteToPlay = "G4"; // G note for Triangle
-                    break;
-                default:
-                    noteToPlay = "C4"; // Default to C4 if shape is unknown
+                case 'square': noteToPlay = "C4"; break;
+                case 'circle': noteToPlay = "E4"; break;
+                case 'triangle': noteToPlay = "G4"; break;
+                default: noteToPlay = "C4";
             }
-            launchSynth.triggerAttackRelease(noteToPlay, "8n"); // Play the specific note for 8th note duration
+            // Schedule the sound precisely using Tone.now() + offset
+            launchSynth.triggerAttackRelease(noteToPlay, "8n", Tone.now() + timeOffset);
 
             // Determine initial position and direction based on player's new position
             let startX = canvas.width / 2;
@@ -876,11 +949,53 @@
             }
 
             player.fireballs.push(new Fireball(startX, startY, shape, direction));
+        }
 
-            // Allow firing again after a short delay (or when meter allows)
+        /**
+         * Handles a player firing one or multiple fireballs based on game timer.
+         * @param {object} player - The player object (player1 or player2).
+         * @param {string} shape - The shape of the fireball to fire.
+         */
+        function fireFireball(player, shape) {
+            if (!gameActive || !player.canFire || player.fireballEnergy < GAME_CONFIG.FIREBALL_COST) {
+                return; // Cannot fire if game not active, on cooldown, or not enough energy
+            }
+
+            player.fireballEnergy -= GAME_CONFIG.FIREBALL_COST; // Deduct energy once per button press
+            player.canFire = false; // Disable firing immediately to prevent rapid-fire
+
+            let fireCount = 1;
+            let delayBetweenFireballs = 0; // in seconds
+
+            // Determine number of fireballs and delay based on game timer
+            if (gameTimer <= 0) { // After timer runs out
+                fireCount = 4;
+                delayBetweenFireballs = 0.1; // Even faster for 4 fireballs
+            } else if (gameTimer <= 15) { // From 15s to 0s
+                fireCount = 3;
+                delayBetweenFireballs = 0.15; // Triplet feel
+            } else if (gameTimer <= 30) { // From 30s to 15s
+                fireCount = 2;
+                delayBetweenFireballs = 0.25; // Quarter note feel
+            } else { // Above 30s
+                fireCount = 1;
+                delayBetweenFireballs = 0; // No delay for single shot
+            }
+
+            // Launch fireballs with calculated delays
+            for (let i = 0; i < fireCount; i++) {
+                // Schedule the fireball launch and its sound with an offset
+                const currentDelay = i * delayBetweenFireballs;
+                // Use setTimeout for the visual fireball creation, and Tone.now() for audio scheduling
+                setTimeout(() => {
+                    launchSingleFireball(player, shape, currentDelay);
+                }, currentDelay * 1000); // Convert delay to milliseconds for setTimeout
+            }
+
+            // Re-enable firing after the last fireball in the burst and a small base cooldown
             setTimeout(() => {
                 player.canFire = true;
-            }, 500); // 0.5 second cooldown, in addition to energy cost
+            }, (fireCount - 1) * delayBetweenFireballs * 1000 + currentFireCooldown); // Use dynamic cooldown
         }
 
         /**
@@ -952,6 +1067,71 @@
         }
 
         /**
+         * Updates the visual state of the timer bars (height and color).
+         */
+        function updateTimerBars() {
+            const remainingTimeRatio = gameTimer / GAME_CONFIG.GAME_DURATION; // 1.0 down to 0.0
+
+            // Calculate the current height of the bars relative to canvas height
+            const currentBarHeight = canvas.height * remainingTimeRatio;
+
+            // Calculate the new top position to keep them vertically centered
+            const topOffset = (canvas.height - currentBarHeight) / 2;
+
+            timerBarLeft.style.height = `${currentBarHeight}px`;
+            timerBarRight.style.height = `${currentBarHeight}px`;
+            timerBarLeft.style.top = `${topOffset}px`;
+            timerBarRight.style.top = `${topOffset}px`;
+
+            // Update colors based on time remaining
+            if (gameTimer <= 15) {
+                timerBarLeft.classList.add('red');
+                timerBarRight.classList.add('red');
+                timerBarLeft.classList.remove('orange');
+                timerBarRight.classList.remove('orange');
+            } else if (gameTimer <= 30) {
+                timerBarLeft.classList.add('orange');
+                timerBarRight.classList.add('orange');
+                timerBarLeft.classList.remove('red');
+                timerBarRight.classList.remove('red');
+            } else {
+                timerBarLeft.classList.remove('orange', 'red'); // Back to default green (no class needed)
+            }
+        }
+
+        /**
+         * Triggers a white flash overlay on the screen and plays a sound.
+         */
+        function triggerFlashEffect() {
+            const flashOverlay = document.createElement('div');
+            flashOverlay.id = 'flash-overlay';
+            // Set CSS variable for opacity
+            flashOverlay.style.setProperty('--flash-opacity', GAME_CONFIG.TIMER_PULSE_OPACITY);
+            flashOverlay.style.cssText += `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(255, 255, 255, var(--flash-opacity)); /* Use variable here */
+                opacity: 0;
+                z-index: 160; /* Above end-screen-overlay */
+                pointer-events: none; /* Allow clicks to pass through */
+                animation: flashWhite ${GAME_CONFIG.TIMER_PULSE_DURATION}s ease-out forwards;
+            `;
+            document.querySelector('.game-container').appendChild(flashOverlay);
+
+            // Remove after animation
+            flashOverlay.addEventListener('animationend', () => {
+                flashOverlay.remove();
+            });
+
+            // Trigger audio cue
+            timerEndSynth.triggerAttackRelease("C3", "0.5"); // A low C note for 0.5 seconds
+        }
+
+
+        /**
          * Main game update loop.
          * @param {number} currentTime - Current timestamp from performance.now().
          */
@@ -962,6 +1142,43 @@
 
             const deltaTime = (currentTime - lastUpdateTime) / 1000; // Delta time in seconds
             lastUpdateTime = currentTime;
+
+            // Update current fireball cooldown based on game timer
+            if (gameTimer <= 0) {
+                currentFireCooldown = GAME_CONFIG.FIRE_COOLDOWN_STAGE_4;
+            } else if (gameTimer <= 15) {
+                currentFireCooldown = GAME_CONFIG.FIRE_COOLDOWN_STAGE_3;
+            } else if (gameTimer <= 30) {
+                currentFireCooldown = GAME_CONFIG.FIRE_COOLDOWN_STAGE_2;
+            } else {
+                currentFireCooldown = GAME_CONFIG.FIRE_COOLDOWN_STAGE_1;
+            }
+
+            // Decrement game timer, ensuring it doesn't go below zero
+            // Trigger effects at specific time marks
+            if (gameTimer > 30 && (gameTimer - deltaTime) <= 30) {
+                if (!thirtySecondMarkTriggered) {
+                    thirtySecondMarkTriggered = true;
+                    triggerFlashEffect();
+                }
+            }
+            if (gameTimer > 15 && (gameTimer - deltaTime) <= 15) {
+                if (!fifteenSecondMarkTriggered) {
+                    fifteenSecondMarkTriggered = true;
+                    triggerFlashEffect();
+                }
+            }
+            if (gameTimer > 0 && (gameTimer - deltaTime) <= 0) {
+                gameTimer = 0; // Cap at 0
+                if (!timerEndedEffectTriggered) {
+                    timerEndedEffectTriggered = true;
+                    triggerFlashEffect();
+                }
+            } else if (gameTimer > 0) {
+                gameTimer -= deltaTime;
+            }
+            updateTimerBars(); // Update timer bar visuals
+
 
             // Regenerate fireball energy
             player1.fireballEnergy = Math.min(GAME_CONFIG.MAX_FIREBALL_ENERGY, player1.fireballEnergy + GAME_CONFIG.ENERGY_REGEN_RATE * deltaTime);
@@ -1077,7 +1294,7 @@
             updateMeters(player1);
             updateMeters(player2);
 
-            // Check for game over
+            // Check for game over (only by health now)
             checkGameOver();
 
             // Redraw game elements
@@ -1103,6 +1320,7 @@
 
         /**
          * Checks if the game is over and displays the appropriate message.
+         * Game now only ends when a player's health reaches 0.
          */
         function checkGameOver() {
             if (player1.health <= 0) {
@@ -1112,6 +1330,7 @@
                 player2.health = 0; // Cap health at 0
                 endGame("player1"); // Player 1 wins if Player 2's health is 0
             }
+            // The game no longer ends when the timer runs out.
         }
 
         /**
@@ -1169,6 +1388,21 @@
             // Reset game mode to default and update toggle button
             gameMode = 'twoPlayer';
             updateModeToggleButton();
+
+            // Reset timer bar visuals to full green
+            timerBarLeft.classList.remove('orange', 'red');
+            timerBarRight.classList.remove('orange', 'red');
+            if (canvas.height > 0) { // Only set if canvas has a height (after resize)
+                timerBarLeft.style.height = `${canvas.height}px`;
+                timerBarRight.style.height = `${canvas.height}px`;
+                timerBarLeft.style.top = `0px`;
+                timerBarRight.style.top = `0px`;
+            }
+            timerEndedEffectTriggered = false; // Reset the flag for the next game
+            thirtySecondMarkTriggered = false; // Reset the flag for 30-second mark
+            fifteenSecondMarkTriggered = false; // Reset the flag for 15-second mark
+            gameTimer = GAME_CONFIG.GAME_DURATION; // Reset game timer
+            currentFireCooldown = GAME_CONFIG.FIRE_COOLDOWN_STAGE_1; // Reset cooldown to initial stage
         }
 
         /**
@@ -1333,6 +1567,12 @@
             player2.endIndicator.classList.remove('winner', 'loser');
 
             gameActive = true; // Game is now active
+            gameTimer = GAME_CONFIG.GAME_DURATION; // Reset game timer
+            timerEndedEffectTriggered = false; // Reset the flag for the next game
+            thirtySecondMarkTriggered = false; // Reset the flag for 30-second mark
+            fifteenSecondMarkTriggered = false; // Reset the flag for 15-second mark
+            currentFireCooldown = GAME_CONFIG.FIRE_COOLDOWN_STAGE_1; // Reset cooldown to initial stage
+            updateTimerBars(); // Update timer bars to full green
             lastUpdateTime = performance.now(); // Reset timer for smooth start
             requestAnimationFrame(gameLoop); // Start the game loop again
         }
