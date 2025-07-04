@@ -275,7 +275,7 @@
             align-items: center; /* Center horizontally */
             z-index: 150; /* Between game-message and start-screen */
             display: none; /* Hidden by default */
-            padding: 15vh 0; /* Use vh for vertical padding to ensure consistent spacing */
+            padding: 25vh 0; /* Use vh for vertical padding to ensure consistent spacing */
         }
 
         .end-game-indicator {
@@ -335,7 +335,7 @@
         <!-- Start Screen -->
         <div id="start-screen">
             <p style="font-size: 1.5rem; margin-bottom: 2rem;">
-                v0.5
+                v0.7
             </p>
             <button id="start-game-button">
                 <!-- Moved rule icons into the button -->
@@ -796,9 +796,9 @@
          */
         function resolveCollision(fb1, fb2) {
             const rules = {
-                'square': 'triangle',   // Paper (Square) beats Rock (Circle)
-                'circle': 'square',     // Rock (Circle) beats Scissors (Triangle)
-                'triangle': 'circle'    // Scissors (Triangle) beats Paper (Square)
+                'square': 'circle',   // Paper (Square) beats Rock (Circle)
+                'circle': 'triangle',     // Rock (Circle) beats Scissors (Triangle)
+                'triangle': 'square'    // Scissors (Triangle) beats Paper (Square)
             };
 
             // Player 1's fireball is fb1, Player 2's fireball is fb2
