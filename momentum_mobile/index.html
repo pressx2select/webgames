@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Momentum</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0b0b12; overflow: hidden; font-family: sans-serif; user-select: none; touch-action: none; }
+canvas { display: block; position: absolute; top: 0; left: 0; }
+
+#overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+
+/* ---- MENU SYSTEM ---- */
+.menu-step {
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: 24px; opacity: 0; transform: scale(0.95); transition: all 0.3s ease;
+  width: 100%; padding: 20px;
+}
+.menu-step.active {
+  display: flex; opacity: 1; transform: scale(1);
+}
+
+/* ---- TITLE SCREEN ---- */
+#step-title {
+  gap: 16px;
+}
+.game-title {
+  font-size: clamp(48px, 12vw, 80px);
+  font-weight: 900;
+  color: white;
+  letter-spacing: -3px;
+  text-shadow: 0 0 40px rgba(0,150,255,0.4);
+}
+.game-subtitle {
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+}
+.tap-start {
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.4);
+  animation: blink 1.4s infinite;
+  margin-top: 20px;
+}
+@keyframes blink { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+/* ---- GRID BUTTON MENUS ---- */
+.menu-label {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.25);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.btn-grid {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 360px;
+  pointer-events: all;
+}
+.btn-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.btn-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.btn-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+.menu-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px;
+  padding: 16px 8px;
+  background: rgba(255,255,255,0.04);
+  border: 2px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  color: rgba(255,255,255,0.6);
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 70px;
+  -webkit-tap-highlight-color: transparent;
+}
+.menu-btn:active, .menu-btn.selected {
+  background: rgba(255,255,255,0.12);
+  border-color: white;
+  color: white;
+  transform: scale(1.04);
+  box-shadow: 0 0 20px rgba(255,255,255,0.08);
+}
+.menu-btn .btn-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.menu-btn .btn-label {
+  font-size: 11px;
+  letter-spacing: 2px;
+  opacity: 0.7;
+}
+
+/* Ball count dots inside mode buttons */
+.dot-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+}
+.mini-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.7);
+}
+
+/* Terrain preview inside bg buttons */
+.terrain-preview {
+  width: 100%; height: 36px;
+}
+.terrain-preview svg { width: 100%; height: 100%; overflow: visible; }
+
+/* ---- WIN/GAME OVER SCREEN ---- */
+#win-screen {
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; pointer-events: all; color: white; text-align: center;
+}
+.score-big {
+  font-size: clamp(80px, 22vw, 130px);
+  font-weight: 900;
+  letter-spacing: -4px;
+  line-height: 1;
+  color: white;
+  text-shadow: 0 0 60px rgba(255,255,255,0.15);
+}
+.score-label {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 5px;
+  color: rgba(255,255,255,0.3);
+  margin-top: -8px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+#win-msg {
+  font-size: clamp(36px, 9vw, 60px);
+  font-weight: 900;
+  letter-spacing: -1px;
+}
+#win-submsg {
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: -8px;
+}
+.win-btn-row {
+  display: flex; gap: 14px; margin-top: 16px;
+}
+.win-btn {
+  padding: 14px 28px;
+  border-radius: 50px;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.06);
+  color: white;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+.win-btn:active {
+  background: rgba(255,255,255,0.15);
+  transform: scale(0.97);
+}
+.win-btn.primary {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.5);
+}
+
+/* touch zones are drawn on canvas, no HTML div needed */
+
+/* ---- SURVIVAL SCORE ---- */
+#survival-score-display {
+  position: absolute; top: 24px; width: 100%; text-align: center;
+  font-size: 44px; font-weight: 900; color: rgba(255,255,255,0.1);
+  display: none; pointer-events: none; letter-spacing: -2px;
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="overlay">
+
+  <!-- TITLE SCREEN -->
+  <div id="step-title" class="menu-step active" style="pointer-events:all;">
+    <div class="game-title">MOMENTUM</div>
+    <div class="game-subtitle">Marble Combat</div>
+    <div class="tap-start">TAP TO START</div>
+  </div>
+
+  <!-- MODE SELECTION: 1–4 balls (all single player with bots) -->
+  <div id="step-players" class="menu-step">
+    <div class="menu-label">Number of Bots</div>
+    <div class="btn-grid cols-2" id="mode-grid">
+      <button class="menu-btn selected" data-mode="1" onclick="selectMode(1)">
+        <div class="dot-row"><div class="mini-dot"></div></div>
+        <div class="btn-label">1 BOT</div>
+      </button>
+      <button class="menu-btn" data-mode="2" onclick="selectMode(2)">
+        <div class="dot-row"><div class="mini-dot"></div><div class="mini-dot"></div></div>
+        <div class="btn-label">2 BOTS</div>
+      </button>
+      <button class="menu-btn" data-mode="3" onclick="selectMode(3)">
+        <div class="dot-row"><div class="mini-dot"></div><div class="mini-dot"></div><div class="mini-dot"></div></div>
+        <div class="btn-label">3 BOTS</div>
+      </button>
+      <button class="menu-btn" data-mode="4" onclick="selectMode(4)">
+        <div class="dot-row"><div class="mini-dot"></div><div class="mini-dot"></div><div class="mini-dot"></div><div class="mini-dot"></div></div>
+        <div class="btn-label">4 BOTS</div>
+      </button>
+    </div>
+    <button class="menu-btn" style="width:100%;max-width:360px;pointer-events:all;" onclick="goToBg()">
+      <div class="btn-label">NEXT →</div>
+    </button>
+  </div>
+
+  <!-- LEVEL / TERRAIN SELECTION -->
+  <div id="step-bg" class="menu-step">
+    <div class="menu-label">Choose Level</div>
+    <div class="btn-grid cols-3" id="bg-grid">
+      <button class="menu-btn selected" data-bg="1" onclick="selectBg(1)">
+        <div class="terrain-preview">
+          <svg viewBox="0 0 80 40"><path d="M 2 4 Q 40 60 78 4" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="btn-label">VALLEY</div>
+      </button>
+      <button class="menu-btn" data-bg="2" onclick="selectBg(2)">
+        <div class="terrain-preview">
+          <svg viewBox="0 0 80 40"><path d="M 2 4 Q 20 55 40 28 Q 60 55 78 4" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="btn-label">TWIN</div>
+      </button>
+      <button class="menu-btn" data-bg="3" onclick="selectBg(3)">
+        <div class="terrain-preview">
+          <svg viewBox="0 0 80 40"><path d="M 2 4 Q 15 50 28 24 Q 40 50 52 24 Q 65 50 78 4" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="4" stroke-linecap="round"/></svg>
+        </div>
+        <div class="btn-label">RIDGE</div>
+      </button>
+    </div>
+    <button class="menu-btn" style="width:100%;max-width:360px;pointer-events:all;" onclick="startGame()">
+      <div class="btn-label">PLAY</div>
+    </button>
+  </div>
+
+  <!-- WIN / GAME OVER SCREEN -->
+  <div id="win-screen" class="menu-step">
+    <div id="score-big-display" class="score-big" style="display:none;"></div>
+    <div id="score-big-label" class="score-label" style="display:none;">SCORE</div>
+    <div id="win-msg"></div>
+    <div id="win-submsg"></div>
+    <div class="win-btn-row">
+      <button class="win-btn primary" onclick="winRematch()">PLAY AGAIN</button>
+      <button class="win-btn" onclick="goToTitle()">MENU</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="survival-score-display">0</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// --- CONSTANTS ---
+const GRAV         = 0.15;
+const GRAV_DIVE    = 0.7;
+const FRICTION     = 0.992;
+const BONK_THRESHOLD = 18;
+const BONK_COOLDOWN  = 45;
+const MAX_LIVES      = 5;
+
+const PLAYER_COLORS = ['#0066ff','#ff3366','#ffcc00','#bb88ff'];
+const BOT_COLORS    = ['#00ffcc','#ff5500','#aa00ff','#ffffff'];
+
+let players    = [];
+let enemies    = [];
+let particles  = [];
+let waves      = [];
+let bonkTimer  = 0;
+
+let gameState     = 'title';
+let numBots       = 1;
+let bgChoice      = 1;
+let survivalScore = 0;
+let spawnTimer    = 0;
+
+// --- AUDIO ---
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone({ type='square', freq=440, freq2=null, duration=0.12, volume=0.18, attack=0.005 }) {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    if (freq2 !== null) osc.frequency.linearRampToValueAtTime(freq2, ac.currentTime + duration);
+    gain.gain.setValueAtTime(0, ac.currentTime);
+    gain.gain.linearRampToValueAtTime(volume, ac.currentTime + attack);
+    gain.gain.linearRampToValueAtTime(0, ac.currentTime + duration);
+    osc.start(ac.currentTime); osc.stop(ac.currentTime + duration + 0.01);
+  } catch(e) {}
+}
+function sfxJump()       { playTone({ type:'square',    freq:220, freq2:440, duration:0.12, volume:0.15 }); }
+function sfxDive()       { playTone({ type:'sawtooth',  freq:200, freq2:800, duration:0.45, volume:0.14, attack:0.01 }); }
+function sfxBonk()       { playTone({ type:'square',    freq:600, freq2:200, duration:0.14, volume:0.22 }); setTimeout(()=>playTone({type:'square',freq:150,freq2:80,duration:0.18,volume:0.20}),60); }
+function sfxBump()       { playTone({ type:'square',    freq:160, freq2:120, duration:0.08, volume:0.14 }); }
+function sfxWin()        { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playTone({type:'square',freq:f,duration:0.15,volume:0.20}),i*110)); }
+function sfxLand()       { playTone({ type:'triangle',  freq:90,  freq2:60,  duration:0.06, volume:0.10 }); }
+function sfxMenuMove()   { playTone({ type:'square',    freq:330, freq2:380, duration:0.05, volume:0.08 }); }
+function sfxMenuSelect() { playTone({ type:'square',    freq:440, freq2:660, duration:0.10, volume:0.12 }); }
+function sfxDeath()      {
+  [350,300,250,200,150].forEach((f,i)=>setTimeout(()=>playTone({type:'sawtooth',freq:f,duration:0.1,volume:0.2}),i*80));
+  setTimeout(()=>playTone({type:'square',freq:80,duration:0.5,volume:0.3}),400);
+}
+
+// --- MENU HELPERS ---
+function showStep(id) {
+  document.querySelectorAll('.menu-step').forEach(el=>el.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function selectMode(n) {
+  numBots = n;
+  document.querySelectorAll('#mode-grid .menu-btn').forEach(b=>{
+    b.classList.toggle('selected', parseInt(b.dataset.mode)===n);
+  });
+  sfxMenuMove();
+}
+
+function selectBg(n) {
+  bgChoice = n;
+  document.querySelectorAll('#bg-grid .menu-btn').forEach(b=>{
+    b.classList.toggle('selected', parseInt(b.dataset.bg)===n);
+  });
+  sfxMenuMove();
+}
+
+function goToBg() {
+  sfxMenuSelect();
+  gameState = 'title_bg';
+  showStep('step-bg');
+}
+
+function goToPlayers() {
+  sfxMenuSelect();
+  gameState = 'title_players';
+  showStep('step-players');
+}
+
+function goToTitle() {
+  sfxMenuMove();
+  hideTapZones();
+  document.getElementById('survival-score-display').style.display = 'none';
+  gameState = 'title';
+  showStep('step-title');
+}
+
+function startGame() {
+  getAudio().resume();
+  sfxMenuSelect();
+  gameState = 'playing';
+  showStep(null); // hide all menus
+  survivalScore = 0;
+  spawnTimer = 0;
+
+  const scoreEl = document.getElementById('survival-score-display');
+  scoreEl.style.display = 'block';
+  scoreEl.textContent = '0';
+
+  touchHintAlpha = 0.18;
+
+  spawnPlayerAndBots();
+  showTapZones();
+}
+
+function winRematch() {
+  sfxMenuSelect();
+  startGame();
+}
+
+// --- TERRAIN ---
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+
+function terrainY(x) {
+  const u = x / canvas.width;
+  const macro = Math.pow(Math.abs(2*u-1), 6);
+  const baseCenter = canvas.height * 0.75;
+  const edgeLift = canvas.height * 0.6;
+  let bumps = 0;
+  const bumpAmp = canvas.height * 0.18;
+  if (bgChoice === 1) bumps = -bumpAmp * 1.2 * Math.cos(u * Math.PI * 2);
+  else if (bgChoice === 2) bumps = -bumpAmp * Math.cos(u * Math.PI * 4);
+  else if (bgChoice === 3) bumps = -bumpAmp * 0.7 * Math.cos(u * Math.PI * 6);
+  return baseCenter - (macro * edgeLift) + bumps;
+}
+
+function terrainSlope(x) {
+  const dx = 1;
+  return (terrainY(x+dx) - terrainY(x-dx)) / (2*dx);
+}
+
+// --- FX ---
+function createExplosion(x, y, color, count) {
+  for (let i=0; i<count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+    particles.push({ x, y, color, size: 6+Math.random()*10,
+      velX: Math.cos(angle)*speed, velY: Math.sin(angle)*speed,
+      alpha: 1, decay: 0.01+Math.random()*0.02 });
+  }
+}
+
+// --- SPAWNING ---
+function spawnPlayerAndBots() {
+  players = []; enemies = []; particles = []; waves = [];
+
+  // Human player
+  players.push({
+    id: 0, isAI: false,
+    x: canvas.width * 0.5, y: 80,
+    vx: 3, vy: 0, r: 45,
+    color: PLAYER_COLORS[0],
+    diving: false, onGround: false, jumped: false,
+    hitFlash: 0, lives: MAX_LIVES
+  });
+
+  // Spawn bots immediately
+  for (let i = 0; i < numBots; i++) spawnEnemy();
+
+  bonkTimer = 0;
+}
+
+function spawnEnemy() {
+  enemies.push({
+    id: 'e'+Math.random(), isAI: true,
+    x: Math.random() > 0.5 ? canvas.width - 60 : 60, y: 50,
+    vx: (Math.random()-0.5)*6, vy: 0,
+    r: 40, color: BOT_COLORS[Math.floor(Math.random()*BOT_COLORS.length)],
+    diving: false, onGround: false, jumped: false, hitFlash: 0, lives: 1
+  });
+}
+
+// --- COLLISIONS ---
+function sweptCircleCollide(a, b) {
+  const minDist = a.r + b.r;
+  const rx = b.x-a.x, ry = b.y-a.y;
+  const dvx = b.vx-a.vx, dvy = b.vy-a.vy;
+  if (Math.sqrt(rx*rx+ry*ry) < minDist) return 0;
+  const A = dvx*dvx+dvy*dvy;
+  if (A < 1e-10) return null;
+  const B = 2*(rx*dvx+ry*dvy);
+  const C = rx*rx+ry*ry-minDist*minDist;
+  const disc = B*B-4*A*C;
+  if (disc < 0) return null;
+  const t = (-B-Math.sqrt(disc))/(2*A);
+  return (t>=0 && t<=1) ? t : null;
+}
+
+function killEntity(entity, isPlayer) {
+  sfxDeath();
+  createExplosion(entity.x, entity.y, entity.color, 40);
+  for (let w=0; w<4; w++) setTimeout(()=>waves.push({x:entity.x,y:entity.y,r:entity.r,alpha:1.0,width:6}), w*150);
+  if (isPlayer) {
+    players = players.filter(p=>p.id !== entity.id);
+  } else {
+    enemies = enemies.filter(e=>e.id !== entity.id);
+    survivalScore++;
+    document.getElementById('survival-score-display').textContent = survivalScore;
+    // Respawn a new bot after a delay
+    setTimeout(() => { if (gameState === 'playing') spawnEnemy(); }, 3000);
+  }
+}
+
+function resolveCollision(a, b) {
+  const dx = b.x-a.x, dy = b.y-a.y;
+  const dist = Math.sqrt(dx*dx+dy*dy) || 0.001;
+  const vertDiff = a.y - b.y;
+  if (Math.abs(vertDiff) > BONK_THRESHOLD) {
+    const attacker = vertDiff > 0 ? b : a;
+    const victim   = vertDiff > 0 ? a : b;
+    victim.lives--;
+    victim.vy = -12; victim.vx += victim.x < attacker.x ? -6 : 6;
+    attacker.vy = Math.min(attacker.vy * 0.4, 0);
+    victim.hitFlash = 40;
+    createExplosion(victim.x, victim.y, victim.color, 15);
+    waves.push({x:victim.x, y:victim.y, r:victim.r, alpha:1.0, width:2.5});
+    sfxBonk();
+    if (victim.lives <= 0) killEntity(victim, players.includes(victim));
+    bonkTimer = BONK_COOLDOWN;
+    checkWinCondition();
+  } else {
+    const nx = dx/dist, ny = dy/dist;
+    const dvx = a.vx-b.vx, dvy = a.vy-b.vy;
+    const dot = dvx*nx+dvy*ny;
+    if (dot > 0) { const imp = dot*0.9; a.vx -= imp*nx; a.vy -= imp*ny; b.vx += imp*nx; b.vy += imp*ny; }
+    const overlap = (a.r+b.r-dist)/2+0.5;
+    a.x -= nx*overlap; a.y -= ny*overlap;
+    b.x += nx*overlap; b.y += ny*overlap;
+    bonkTimer = 8; sfxBump();
+  }
+}
+
+function checkCollisions() {
+  if (bonkTimer > 0) return;
+  const all = players.concat(enemies);
+  for (let i=0; i<all.length; i++) {
+    for (let j=i+1; j<all.length; j++) {
+      const a = all[i], b = all[j];
+      const t = sweptCircleCollide(a, b);
+      if (t === null) continue;
+      if (t > 0) { a.x += a.vx*t; a.y += a.vy*t; b.x += b.vx*t; b.y += b.vy*t; }
+      resolveCollision(a, b);
+    }
+  }
+}
+
+function checkWinCondition() {
+  if (players.length === 0) triggerGameOver("GAME OVER", survivalScore, "white");
+}
+
+function triggerGameOver(mainMsg, score, color="white") {
+  gameState = 'win';
+  sfxWin();
+  hideTapZones();
+  document.getElementById('survival-score-display').style.display = 'none';
+
+  const scoreBig = document.getElementById('score-big-display');
+  const scoreLabel = document.getElementById('score-big-label');
+  const msg = document.getElementById('win-msg');
+  const submsg = document.getElementById('win-submsg');
+
+  scoreBig.textContent = score;
+  scoreBig.style.color = color;
+  scoreBig.style.display = 'block';
+  scoreLabel.style.display = 'block';
+
+  msg.textContent = mainMsg;
+  msg.style.color = color;
+  submsg.textContent = `${score} BOT${score !== 1 ? 'S' : ''} DEFEATED`;
+
+  showStep('win-screen');
+  document.getElementById('win-screen').style.display = 'flex';
+}
+
+// --- UPDATE / DRAW ---
+function update() {
+  particles.forEach(p=>{ p.x+=p.velX; p.y+=p.velY; p.alpha-=p.decay; p.size*=0.96; });
+  particles = particles.filter(p=>p.alpha>0);
+  waves = waves.filter(w=>w.alpha>0);
+  waves.forEach(w=>{ w.r+=6; w.alpha-=0.035; });
+
+  if (gameState !== 'playing') return;
+  if (bonkTimer > 0) bonkTimer--;
+
+  const all = players.concat(enemies);
+  all.forEach(p => {
+    if (p.hitFlash > 0) p.hitFlash--;
+
+    // AI behavior
+    if (p.isAI && players[0]) {
+      const target = players[0];
+      if (target.x > p.x && p.vx < 6) p.vx += 0.15;
+      if (target.x < p.x && p.vx > -6) p.vx -= 0.15;
+      if (Math.random() < 0.02 && p.onGround) p.vy = -8;
+    }
+
+    const wasGround = p.onGround;
+    const grav = p.diving ? GRAV_DIVE : GRAV;
+    p.vy += grav; p.x += p.vx; p.y += p.vy;
+
+    const gy = terrainY(p.x);
+    if (p.y + p.r >= gy) {
+      p.y = gy - p.r;
+      if (!wasGround && !p.isAI) sfxLand();
+      p.onGround = true; p.jumped = false;
+      const sl = terrainSlope(p.x);
+      let tx=1, ty=sl;
+      const len = Math.sqrt(tx*tx+ty*ty); tx/=len; ty/=len;
+      const dot = (p.vx*tx+p.vy*ty) + (grav*ty);
+      p.vx = tx*(dot*FRICTION); p.vy = ty*(dot*FRICTION);
+    } else { p.onGround = false; }
+
+    if (p.x < p.r) { p.x=p.r; p.vx=Math.abs(p.vx); }
+    if (p.x > canvas.width-p.r) { p.x=canvas.width-p.r; p.vx=-Math.abs(p.vx); }
+  });
+
+  checkCollisions();
+}
+
+function draw() {
+  ctx.fillStyle = '#0b0b12';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height);
+  for (let x=0; x<=canvas.width; x+=8) ctx.lineTo(x, terrainY(x));
+  ctx.lineTo(canvas.width, canvas.height);
+  ctx.fillStyle = '#002a3a'; ctx.fill();
+
+  ctx.beginPath();
+  for (let x=0; x<=canvas.width; x+=8) {
+    if (x===0) ctx.moveTo(x, terrainY(x));
+    else ctx.lineTo(x, terrainY(x));
+  }
+  ctx.strokeStyle='rgba(0,200,180,0.2)'; ctx.lineWidth=20.5; ctx.stroke();
+
+  if (gameState !== 'playing' && gameState !== 'win') return;
+
+  waves.forEach(w=>{
+    ctx.beginPath(); ctx.arc(w.x,w.y,w.r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,255,255,${Math.max(0,w.alpha)})`;
+    ctx.lineWidth=w.width; ctx.stroke();
+  });
+
+  players.concat(enemies).forEach(p=>{
+    let drawColor = p.color;
+    if (p.hitFlash>0) {
+      if (p.hitFlash>30) drawColor='#ffffff';
+      else if (p.hitFlash>20) drawColor='#ff0000';
+      else if (p.hitFlash>10) drawColor='#ffffff';
+      else drawColor='#ffff00';
+    } else if (p.diving) {
+      const r=parseInt(p.color.slice(1,3),16), g=parseInt(p.color.slice(3,5),16), b=parseInt(p.color.slice(5,7),16);
+      drawColor=`rgb(${Math.round(r+(255-r)*.35)},${Math.round(g+(255-g)*.35)},${Math.round(b+(255-b)*.35)})`;
+    }
+
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle=drawColor; ctx.fill();
+
+    ctx.beginPath(); ctx.arc(p.x-p.r*.3, p.y-p.r*.3, p.r*.35, 0, Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fill();
+
+    if (!p.isAI && p.lives>0) {
+      const gap=0.15; const arcLen=(Math.PI*2)/MAX_LIVES-gap;
+      ctx.lineWidth=4; ctx.strokeStyle='rgba(255,255,255,0.8)';
+      for (let i=0; i<p.lives; i++) {
+        const s=i*(arcLen+gap)-Math.PI/2;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r-8,s,s+arcLen); ctx.stroke();
+      }
+    }
+  });
+
+  particles.forEach(p=>{
+    ctx.save(); ctx.globalAlpha=Math.max(0,p.alpha);
+    ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size/2,0,Math.PI*2);
+    ctx.fill(); ctx.restore();
+  });
+
+  // Draw touch zone hints (fade in on first touch, then fade out)
+  if (gameState === 'playing' && touchHintAlpha > 0) {
+    touchHintAlpha -= 0.001;
+    const hw = canvas.width / 2, hh = canvas.height / 2;
+    ctx.save();
+    ctx.globalAlpha = touchHintAlpha;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hw, 0); ctx.lineTo(hw, canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, hh); ctx.lineTo(canvas.width, hh); ctx.stroke();
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('JUMP', hw / 2, hh / 2);
+    ctx.fillText('JUMP', hw + hw / 2, hh / 2);
+    ctx.fillText('DIVE', hw / 2, hh + hh / 2);
+    ctx.fillText('DIVE', hw + hw / 2, hh + hh / 2);
+    ctx.restore();
+  }
+}
+
+// --- TOUCH / CLICK INPUT ---
+// Two full-screen tap zones are injected directly into the DOM for gameplay.
+// This avoids any overlay/pointer-events conflicts entirely.
+
+let diveActive = false;
+let touchHintAlpha = 0;
+
+// Create top-half tap zone (JUMP)
+const tapTop = document.createElement('div');
+tapTop.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:50%;z-index:999;display:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
+document.body.appendChild(tapTop);
+
+// Create bottom-half tap zone (DIVE)
+const tapBot = document.createElement('div');
+tapBot.style.cssText = 'position:fixed;top:50%;left:0;width:100%;height:50%;z-index:999;display:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;';
+document.body.appendChild(tapBot);
+
+function showTapZones() { tapTop.style.display = 'block'; tapBot.style.display = 'block'; touchHintAlpha = 0.18; }
+function hideTapZones() { tapTop.style.display = 'none';  tapBot.style.display = 'none'; }
+
+tapTop.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  getAudio().resume();
+  if (players[0] && (players[0].onGround || !players[0].jumped)) {
+    players[0].vy = -9;
+    players[0].jumped = true;
+    sfxJump();
+  }
+}, { passive: false });
+
+tapBot.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  getAudio().resume();
+  if (!diveActive && players[0]) {
+    diveActive = true;
+    players[0].diving = true;
+    sfxDive();
+  }
+}, { passive: false });
+
+tapBot.addEventListener('pointerup',    () => { diveActive = false; if (players[0]) players[0].diving = false; });
+tapBot.addEventListener('pointercancel',() => { diveActive = false; if (players[0]) players[0].diving = false; });
+
+// --- KEYBOARD (desktop fallback) ---
+const keys = {};
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (keys[k]) return;
+  keys[k] = true;
+  if (k==='arrowdown'||k==='arrowup') e.preventDefault();
+
+  if (gameState === 'title') {
+    if (k===' '||k==='enter'||k==='s') { sfxMenuSelect(); gameState='title_players'; showStep('step-players'); }
+    return;
+  }
+  if (gameState === 'title_players') {
+    if (k==='w') selectMode((numBots%4)+1);
+    if (k==='s'||k==='enter') goToBg();
+    return;
+  }
+  if (gameState === 'title_bg') {
+    if (k==='w') { sfxMenuMove(); bgChoice=(bgChoice%3)+1; selectBg(bgChoice); }
+    if (k==='s'||k==='enter') startGame();
+    return;
+  }
+  if (gameState === 'win') {
+    if (k==='s'||k==='enter') winRematch();
+    if (k==='w') goToTitle();
+    return;
+  }
+  if (gameState !== 'playing') return;
+  if (players[0] && !players[0].isAI) {
+    if (k==='s') { players[0].diving=true; sfxDive(); }
+    if (k==='w' && !players[0].jumped) { players[0].vy=-9; players[0].jumped=true; sfxJump(); }
+  }
+});
+window.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = false;
+  if (players[0] && !players[0].isAI && k==='s') players[0].diving=false;
+});
+
+// Title screen tap handler
+document.getElementById('step-title').addEventListener('touchstart', e => {
+  getAudio().resume();
+  if (gameState === 'title') {
+    sfxMenuSelect();
+    gameState = 'title_players';
+    showStep('step-players');
+  }
+}, { passive: false });
+document.getElementById('step-title').addEventListener('click', () => {
+  getAudio().resume();
+  if (gameState === 'title') {
+    sfxMenuSelect();
+    gameState = 'title_players';
+    showStep('step-players');
+  }
+});
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+window.addEventListener('resize', resize);
+resize();
+loop();
+</script>
+</body>
+</html>
