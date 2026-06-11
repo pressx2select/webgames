@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>shapes</title>
     <!-- Tailwind CSS CDN for basic styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,6 +27,9 @@
             justify-content: space-between;
             align-items: center;
             color: #e2e8f0; /* Light text */
+            touch-action: manipulation; /* Disable double-tap zoom on iOS */
+            user-select: none; /* Prevent text selection on tap */
+            -webkit-user-select: none;
         }
 
         .game-container {
@@ -430,7 +433,7 @@
         <!-- Start Screen -->
         <div id="start-screen">
             <p style="font-size: 1.5rem;">
-                v0.2.5
+                v0.3
             </p>
 
             <!-- Top Button Group (Player 2's side - Two Player Mode) -->
@@ -596,7 +599,9 @@
             endIndicator: document.getElementById('p1-end-indicator'),
             lastHitShape: null, // New property to store the shape that successfully hit the opponent
             score: [], // Array to store winning hit shapes
-            scoreDisplay: document.getElementById('p1-score-display') // New DOM element reference
+            scoreDisplay: document.getElementById('p1-score-display'), // New DOM element reference
+            damageTaken: false, // Tracks if this player took any damage this round
+            scoreColors: [] // Parallel array storing the color for each score icon
         };
 
         let player2 = {
@@ -615,7 +620,9 @@
             endIndicator: document.getElementById('p2-end-indicator'),
             lastHitShape: null, // New property
             score: [], // Array to store winning hit shapes
-            scoreDisplay: document.getElementById('p2-score-display') // New DOM element reference
+            scoreDisplay: document.getElementById('p2-score-display'), // New DOM element reference
+            damageTaken: false, // Tracks if this player took any damage this round
+            scoreColors: [] // Parallel array storing the color for each score icon
         };
 
         // Game state variables
@@ -649,6 +656,9 @@
 
         // Global array to hold particles for explosion effects
         let particles = [];
+
+        // Locked game height — set once on first load to prevent iOS zoom/resize from corrupting layout
+        let lockedGameHeight = null;
 
         // Tone.js Instruments
         let powerUpSynth;
@@ -772,18 +782,23 @@
 
 
         /**
-         * Resizes the canvas and game container to fill the window.
-         * This function should be called on window load and resize.
+         * Resizes the canvas and game container.
+         * Height is captured ONCE on first call and never changed again — window resizing,
+         * zoom, browser chrome, or orientation changes will not affect the game height.
          */
         function resizeCanvas() {
             const gameContainer = document.querySelector('.game-container');
-            // Set game container height based on actual window inner height for mobile compatibility
-            // This accounts for browser UI that changes window.innerHeight
-            gameContainer.style.height = `${window.innerHeight}px`;
 
-            // Canvas width and height will automatically adjust due to flex-grow: 1
-            // We need to ensure the canvas's internal drawing size matches its *actual rendered size*
-            // after the browser has laid it out, to prevent stretching.
+            // Capture height exactly once at load time and freeze it forever.
+            if (lockedGameHeight === null) {
+                lockedGameHeight = window.innerHeight;
+                gameContainer.style.height = `${lockedGameHeight}px`;
+                gameContainer.style.minHeight = `${lockedGameHeight}px`;
+                gameContainer.style.maxHeight = `${lockedGameHeight}px`;
+            }
+            // After first load, height is NEVER updated.
+
+            // Sync canvas internal drawing size to its actual rendered size
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
 
@@ -792,18 +807,16 @@
             const player2Area = document.querySelector('.player-area.player-two');
 
             // Calculate and set top/bottom for score displays
-            // Get the actual height of the player areas after layout
             const p1AreaHeight = player1Area.offsetHeight;
             const p2AreaHeight = player2Area.offsetHeight;
 
-            // Position Player 1's score display just below its player area (Player 1 is now at the bottom)
-            player1.scoreDisplay.style.bottom = `${p1AreaHeight + 5}px`; // 5px buffer above player area
-            // Position Player 2's score display just below its player area (Player 2 is now at the top)
-            player2.scoreDisplay.style.top = `${p2AreaHeight + 5}px`; // 5px buffer below player area
+            // Position Player 1's score display just above its player area (Player 1 is at the bottom)
+            player1.scoreDisplay.style.bottom = `${p1AreaHeight + 5}px`;
+            // Position Player 2's score display just below its player area (Player 2 is at the top)
+            player2.scoreDisplay.style.top = `${p2AreaHeight + 5}px`;
 
-            // Update timer bar positions and full height to span the canvas, and then center them
-            updateTimerBars(); // Call this here to ensure bars are positioned correctly on resize
-
+            // Update timer bar positions
+            updateTimerBars();
 
             // Redraw everything after resize
             drawGame();
@@ -1323,6 +1336,7 @@
 
                 if (p1Fb.y - p1Fb.radius <= player2HitZoneY) { // Check if P1's fireball hits P2's zone
                     player2.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
+                    player2.damageTaken = true; // Player 2 took damage
                     p1Fb.isHit = true; // Mark for removal
                     player1.lastHitShape = p1Fb.shape; // Record the shape that hit
                     // Flash player2's area red
@@ -1344,6 +1358,7 @@
 
                 if (p2Fb.y + p2Fb.radius >= player1HitZoneY) { // Check if P2's fireball hits P1's zone
                     player1.health -= GAME_CONFIG.DAMAGE_ON_PLAYER_HIT;
+                    player1.damageTaken = true; // Player 1 took damage
                     p2Fb.isHit = true; // Mark for removal
                     player2.lastHitShape = p2Fb.shape; // Record the shape that hit
                     // Flash player1's area red
@@ -1425,6 +1440,27 @@
                 Tone.Transport.stop(); // Stop the transport when the game ends
             }
 
+            // Determine score icon color based on win conditions:
+            // - Golden yellow if winner took NO damage (overrides all)
+            // - White if won during stage 1 (1 fireball, timer > 30s)
+            // - Light blue-purple if won during stage 2 (2 fireballs, 15s < timer <= 30s)
+            // - Purple-blue if won during stage 3 (3 fireballs, 0 < timer <= 15s)
+            // - Red if won during stage 4 (4 fireballs, timer = 0)
+            function getWinnerScoreColor(winner) {
+                if (!winner.damageTaken) {
+                    return '#FFD700'; // Golden yellow — perfect (no damage taken)
+                }
+                if (gameTimer <= 0) {
+                    return '#ef4444'; // Red — stage 4 (4 fireballs)
+                } else if (gameTimer <= 15) {
+                    return '#7c5cbf'; // Purple-blue — stage 3 (3 fireballs)
+                } else if (gameTimer <= 30) {
+                    return '#93c5fd'; // Light blue-purple — stage 2 (2 fireballs)
+                } else {
+                    return '#ffffff'; // White — stage 1 (1 fireball)
+                }
+            }
+
             // Reset classes
             player1.endIndicator.classList.remove('winner', 'loser');
             player2.endIndicator.classList.remove('winner', 'loser');
@@ -1435,12 +1471,14 @@
                 player2.endIndicator.classList.add('loser');   // Player 2 (top) loses, so top indicator is red
                 if (player1.lastHitShape) { // Only add if a hit occurred
                     player1.score.push(player1.lastHitShape);
+                    player1.scoreColors.push(getWinnerScoreColor(player1));
                 }
             } else { // winnerId === 'player2'
                 player1.endIndicator.classList.add('loser');   // Player 1 (bottom) loses, so bottom indicator is red
                 player2.endIndicator.classList.add('winner');  // Player 2 (top) wins, so top indicator is green
                 if (player2.lastHitShape) { // Only add if a hit occurred
                     player2.score.push(player2.lastHitShape);
+                    player2.scoreColors.push(getWinnerScoreColor(player2));
                 }
             }
             updateScoreDisplay(player1);
@@ -1624,6 +1662,7 @@
             player1.lastFiredShape = null;
             player1.canFire = true; // Enable firing
             player1.lastHitShape = null; // Reset last hit shape
+            player1.damageTaken = false; // Reset damage tracking
 
             player2.health = GAME_CONFIG.MAX_HEALTH; // Ensure full health at game start
             player2.fireballEnergy = GAME_CONFIG.MAX_FIREBALL_ENERGY; // Ensure full energy at game start
@@ -1631,6 +1670,7 @@
             player2.lastFiredShape = null;
             player2.canFire = true; // Enable firing
             player2.lastHitShape = null; // Reset last hit shape
+            player2.damageTaken = false; // Reset damage tracking
 
             // Clear all particles
             particles = [];
@@ -1669,10 +1709,13 @@
          */
         function updateScoreDisplay(player) {
             player.scoreDisplay.innerHTML = ''; // Clear existing icons
-            player.score.forEach(shape => {
+            player.score.forEach((shape, index) => {
                 const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
                 svg.setAttribute("class", "score-icon");
                 svg.setAttribute("viewBox", "0 0 24 24");
+                // Apply the stored color for this icon, falling back to white
+                const iconColor = (player.scoreColors && player.scoreColors[index]) ? player.scoreColors[index] : '#ffffff';
+                svg.style.color = iconColor;
                 let path = '';
                 switch (shape) {
                     case 'square':
@@ -1768,8 +1811,16 @@
             showStartScreen(); // Show the start screen first
         });
 
-        // Handle window resizing
+        // Handle window resizing.
+        // The game height is permanently locked at load time — only width-dependent layout
+        // (canvas draw size, score positions, timer bars) is updated on resize.
         window.addEventListener('resize', resizeCanvas);
+
+        // Extra iOS safeguard: prevent the page from scrolling or bouncing when
+        // someone swipes or accidentally triggers overscroll
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
 
     </script>
 </body>
